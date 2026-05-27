@@ -1,0 +1,1 @@
+Repositorio del trabajo frontend del obligatorio de bases de datos II - 2026
