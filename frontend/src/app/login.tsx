@@ -1,3 +1,4 @@
+import { useAuth } from '@/context/AuthContext';
 import api from '../../services/api';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -8,6 +9,8 @@ export default function LoginScreen() {
   const [mail, setMail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const { login } = useAuth();
+
 
   const handleLogin = async () => {
     if (!mail || !password) {
@@ -16,6 +19,7 @@ export default function LoginScreen() {
     }
     try {
       const response = await api.post('/auth/login', { mail, password });
+      login(response.data);
       router.push('/eventos');
     } catch (err) {
       setError('Correo electrónico o contraseña incorrectos');
