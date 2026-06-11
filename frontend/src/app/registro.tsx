@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { useAuth } from '@/context/AuthContext';
+import { esFuncionario, obtenerUsuarioSesion, useAuth } from '@/context/AuthContext';
 
 export default function RegistroScreen() {
   const router = useRouter();
@@ -48,10 +48,11 @@ export default function RegistroScreen() {
     try {
       await api.post('/auth/registro', form);
       const loginResponse = await api.post('/auth/login', { mail: form.mail, password: form.password });
-      login(loginResponse.data);
+      const usuarioSesion = obtenerUsuarioSesion(loginResponse.data);
+      login(usuarioSesion);
       setExito('Usuario registrado correctamente');
       setError('');
-      setTimeout(() => router.push('/eventos'), 1500);
+      setTimeout(() => router.replace(esFuncionario(usuarioSesion) ? '/funcionario' : '/eventos'), 1500);
     } catch (err: any) {
         const mensaje = err.response?.data;
         if (typeof mensaje === 'string' && mensaje.includes('ya está registrado')) {

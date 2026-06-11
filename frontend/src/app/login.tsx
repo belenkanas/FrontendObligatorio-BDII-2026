@@ -1,4 +1,5 @@
 import { useAuth } from '@/context/AuthContext';
+import { esFuncionario, obtenerUsuarioSesion } from '@/context/AuthContext';
 import api from '../../services/api';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -19,8 +20,9 @@ export default function LoginScreen() {
     }
     try {
       const response = await api.post('/auth/login', { mail, password });
-      login(response.data);
-      router.push('/eventos');
+      const usuarioSesion = obtenerUsuarioSesion(response.data);
+      login(usuarioSesion);
+      router.replace(esFuncionario(usuarioSesion) ? '/funcionario' : '/eventos');
     } catch (err) {
       setError('Correo electrónico o contraseña incorrectos');
     }
