@@ -22,7 +22,8 @@ export default function LoginScreen() {
       const response = await api.post('/auth/login', { mail, password });
       const usuarioSesion = obtenerUsuarioSesion(response.data);
       login(usuarioSesion);
-      router.replace(esFuncionario(usuarioSesion) ? '/funcionario' : '/eventos');
+      const destino = esFuncionario(usuarioSesion) ? '/funcionario' : '/eventos';
+      router.replace(destino as any);
     } catch (err) {
       setError('Correo electrónico o contraseña incorrectos');
     }

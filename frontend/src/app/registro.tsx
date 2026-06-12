@@ -68,7 +68,8 @@ export default function RegistroScreen() {
       login(usuarioSesion);
       setExito('Usuario registrado correctamente');
       setError('');
-      setTimeout(() => router.replace(esFuncionario(usuarioSesion) ? '/funcionario' : '/eventos'), 1500);
+      const destino = esFuncionario(usuarioSesion) ? '/funcionario' : '/eventos';
+      setTimeout(() => router.replace(destino as any), 1500);
     } catch (err: any) {
         const mensaje = err.response?.data;
         if (typeof mensaje === 'string' && mensaje.includes('ya está registrado')) {

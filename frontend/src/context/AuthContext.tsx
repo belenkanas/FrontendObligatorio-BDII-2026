@@ -3,44 +3,26 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AuthContext = createContext<any>(null);
 
-export function obtenerUsuarioSesion(datos: any) {
-  return datos?.usuario ?? datos?.user ?? datos?.data?.usuario ?? datos?.data?.user ?? datos?.payload?.usuario ?? datos?.payload?.user ?? datos;
+export function obtenerUsuarioSesion(data: any) {
+  return {
+    mail: data.mail,
+    idPerfil: data.idPerfil,
+    rol: data.rol,
+  };
 }
 
 export function esFuncionario(usuario: any) {
-  const usuarioNormalizado = obtenerUsuarioSesion(usuario);
-  let textoJson = '';
-
-  try {
-    textoJson = JSON.stringify(usuarioNormalizado ?? {});
-  } catch (error) {
-    textoJson = '';
-  }
-
-  const texto = [
-    usuarioNormalizado?.rol,
-    usuarioNormalizado?.role,
-    usuarioNormalizado?.tipo,
-    usuarioNormalizado?.perfil,
-    usuarioNormalizado?.cargo,
-    usuarioNormalizado?.tipoUsuario,
-    usuarioNormalizado?.nombreRol,
-    textoJson,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-
-  return texto.includes('funcionario') || texto.includes('operario') || texto.includes('staff') || texto.includes('control');
+  return usuario?.rol === 'FUNCIONARIO';
 }
 
 export function AuthProvider({ children }: any) {
   const [usuario, setUsuario] = useState<any>(null);
+  const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    // cargar usuario guardado al iniciar
     AsyncStorage.getItem('usuario').then(data => {
       if (data) setUsuario(JSON.parse(data));
+      setCargando(false);
     });
   }, []);
 
@@ -55,7 +37,7 @@ export function AuthProvider({ children }: any) {
   };
 
   return (
-    <AuthContext.Provider value={{ usuario, login, logout }}>
+    <AuthContext.Provider value={{ usuario, login, logout, cargando }}>
       {children}
     </AuthContext.Provider>
   );
