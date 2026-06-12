@@ -44,8 +44,15 @@ export default function VentaDetalleScreen() {
 
   const cargarEntradas = async () => {
     try {
-      const response = await api.get(`/entradas/venta/${idVenta}`);
-      setEntradas(Array.isArray(response.data) ? response.data : []);
+      // si es una entrada transferida, buscar por id de entrada directo
+      if (String(idVenta).startsWith('transferida-')) {
+        const idEntrada = String(idVenta).replace('transferida-', '');
+        const response = await api.get(`/entradas/${idEntrada}`);
+        setEntradas(response.data ? [response.data] : []);
+      } else {
+        const response = await api.get(`/entradas/venta/${idVenta}`);
+        setEntradas(Array.isArray(response.data) ? response.data : []);
+      }
     } catch {
       setEntradas([]);
     } finally {
@@ -121,7 +128,7 @@ export default function VentaDetalleScreen() {
             <Text style={styles.entradaDetalle}>Sector {entrada.nombreSector} — {entrada.estadioNombre}</Text>
             <Text style={styles.entradaDetalle}>{formatearFecha(entrada.fechaHoraPartido)}</Text>
           </View>
-          <TouchableOpacity style={styles.botonQr} onPress={() => router.push(`/ticket/${entrada.id}` as any)}>
+          <TouchableOpacity style={styles.botonQr} onPress={() => router.push(`/entrada/${entrada.id}?idVenta=${idVenta}` as any)}>
             <Text style={styles.botonQrTexto}>Abrir QR</Text>
           </TouchableOpacity>
         </View>

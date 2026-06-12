@@ -28,9 +28,13 @@ export default function MisTransaccionesScreen() {
   const enviadas = transacciones.filter(t => t.idGeneralRealiza === usuario?.idPerfil);
   const recibidas = transacciones.filter(t => t.idGeneralRecibe === usuario?.idPerfil);
 
-  useEffect(() => {
-    cargarHistorial();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      if (usuario?.idPerfil) {
+        cargarHistorial();
+      }
+    }, [usuario])
+  );
 
   const obtenerMail = async (idGeneral: number): Promise<string> => {
     try {
@@ -76,21 +80,27 @@ export default function MisTransaccionesScreen() {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
   });
 
+  const cancelarTransferencia = async (transf: Transferencia) => {
+    try {
+      await api.post('/transferencias-entrada/cancelar', {
+        idEntrada: transf.id.idEntrada,
+        fechaHora: transf.id.fechaHora,
+      });
+      cargarHistorial();
+    } catch (err: any) {
+      alert(err.response?.data || 'Error al cancelar');
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.titulo}>Mis transacciones</Text>
 
         <View style={styles.tabs}>
-        <TouchableOpacity
-            style={[styles.tab, tabActiva === 'enviadas' && styles.tabActiva]}
-            onPress={() => setTabActiva('enviadas')}
-        >
+        <TouchableOpacity style={[styles.tab, tabActiva === 'enviadas' && styles.tabActiva]} onPress={() => setTabActiva('enviadas')}>
             <Text style={[styles.tabTexto, tabActiva === 'enviadas' && styles.tabTextoActivo]}>Enviadas</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-            style={[styles.tab, tabActiva === 'recibidas' && styles.tabActiva]}
-            onPress={() => setTabActiva('recibidas')}
-        >
+        <TouchableOpacity style={[styles.tab, tabActiva === 'recibidas' && styles.tabActiva]} onPress={() => setTabActiva('recibidas')}>
             <Text style={[styles.tabTexto, tabActiva === 'recibidas' && styles.tabTextoActivo]}>Recibidas</Text>
         </TouchableOpacity>
         </View>
@@ -125,12 +135,18 @@ export default function MisTransaccionesScreen() {
                     {esEnviada ? 'Enviada a' : 'Recibida de'} {esEnviada ? item.mailRecibe : item.mailRealiza}
                 </Text>
                 <Text style={styles.detalle}>{formatearFecha(item.id.fechaHora)}</Text>
+                {item.estado === 'pendiente' && esEnviada && (
+                  <TouchableOpacity style={styles.botonCancelar} onPress={() => cancelarTransferencia(item)}>
+                    <Text style={styles.botonCancelarTexto}>Cancelar transferencia</Text>
+                  </TouchableOpacity>
+                )}
               </View>
+              
             );
           }}
           ListEmptyComponent={
             <View style={styles.centro}>
-              <Text style={styles.vacio}>No tenes transacciones aún</Text>
+              <Text style={styles.vacio}>No realizaste transacciones aún</Text>
             </View>
           }
         />
@@ -155,4 +171,6 @@ const styles = StyleSheet.create({
   tabActiva: { backgroundColor: '#1a73e8' },
   tabTexto: { fontWeight: '600', color: '#6b7280' },
   tabTextoActivo: { color: '#fff' },
+  botonCancelar: { backgroundColor: '#b91c1c', padding: 10, borderRadius: 8, alignItems: 'center', marginTop: 8 },
+  botonCancelarTexto: { color: '#fff', fontWeight: '700', fontSize: 13 },
 });

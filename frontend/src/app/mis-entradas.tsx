@@ -32,27 +32,53 @@ export default function MisEntradasScreen() {
   const [loading, setLoading] = useState(true);
   const [tabActiva, setTabActiva] = useState<'activos' | 'historial'>('activos');
 
-  useEffect(() => {
-    cargarEntradas();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      if (usuario?.idPerfil) {
+        cargarEntradas();
+      }
+    }, [usuario])
+  );
 
   const cargarEntradas = async () => {
     try {
-      // traer todas las entradas donde soy propietario
       const entradasRes = await api.get(`/entradas/usuario/${usuario.idPerfil}`);
       const todasEntradas = Array.isArray(entradasRes.data) ? entradasRes.data : [];
 
-      // agrupar por idVenta
-      const ventasMap: Record<number, any> = {};
+      const ventasMap: Record<string, any> = {};
+
       for (const entrada of todasEntradas) {
         const idVenta = entrada.idVenta;
+
+        if (idVenta === null || idVenta === undefined) {
+          const key = `transferida-${entrada.id}`;
+          let mailOrigen = null;
+          try {
+            const transfRes = await api.get(`/transferencias-entrada/historial/${usuario.idPerfil}`);
+            const transfs = Array.isArray(transfRes.data) ? transfRes.data : [];
+            const transf = transfs.find((t: any) => t.id.idEntrada === entrada.id && t.estado === 'aceptado');
+            if (transf) {
+              const perfilRes = await api.get(`/perfiles/${transf.idGeneralRealiza}`);
+              mailOrigen = perfilRes.data?.usuario?.mail;
+            }
+          } catch {}
+          ventasMap[key] = {
+            idVenta: key,
+            fechaHora: null,
+            costoFinal: null,
+            mailOrigen,
+            entradas: [entrada],
+          };
+          continue;
+        }
+
         if (!ventasMap[idVenta]) {
-          // traer info de la venta
           const ventaRes = await api.get(`/ventas/${idVenta}`);
           ventasMap[idVenta] = {
             idVenta,
             fechaHora: ventaRes.data?.fechaHora,
             costoFinal: ventaRes.data?.costoFinal,
+            mailOrigen: null,
             entradas: [],
           };
         }

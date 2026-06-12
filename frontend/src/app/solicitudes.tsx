@@ -19,15 +19,11 @@ export default function SolicitudesScreen() {
   const [loading, setLoading] = useState(true);
   const [respondiendo, setRespondiendo] = useState<string | null>(null);
 
-  /*useFocusEffect(
+  useFocusEffect(
     useCallback(() => {
       cargarSolicitudes();
     }, [])
-  );*/
-
-  useEffect(() => {
-    cargarSolicitudes();
-  }, []);
+  );
 
   const obtenerMail = async (idGeneral: number): Promise<string> => {
     try {
