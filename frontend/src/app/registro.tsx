@@ -20,8 +20,24 @@ export default function RegistroScreen() {
     direccionPais: '',
     direccionLocalidad: '',
   });
+
+  const [telefonos, setTelefonos] = useState<string[]>(['']);
+
   const { login } = useAuth();
 
+  const agregarTelefono = () => {
+    if (telefonos.length < 5) setTelefonos([...telefonos, '']);
+  };
+
+  const eliminarTelefono = (index: number) => {
+    setTelefonos(telefonos.filter((_, i) => i !== index));
+  };
+
+  const actualizarTelefono = (index: number, valor: string) => {
+    const nuevos = [...telefonos];
+    nuevos[index] = valor;
+    setTelefonos(nuevos);
+  };
 
   const handleRegistro = async () => {
     setError('');
@@ -46,7 +62,7 @@ export default function RegistroScreen() {
     }
 
     try {
-      await api.post('/auth/registro', form);
+      await api.post('/auth/registro', { ...form, telefonos: telefonos.filter(t => t.trim() !== '') });
       const loginResponse = await api.post('/auth/login', { mail: form.mail, password: form.password });
       const usuarioSesion = obtenerUsuarioSesion(loginResponse.data);
       login(usuarioSesion);
@@ -81,6 +97,27 @@ export default function RegistroScreen() {
       </Picker>
       </View>
       <TextInput style={styles.input} placeholder="Número de documento" value={form.documentoNumeroDoc} onChangeText={v => setForm({...form, documentoNumeroDoc: v})} />
+
+      <Text style={styles.seccion}>Teléfonos</Text>
+      {telefonos.map((tel, index) => (
+        <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+          <TextInput
+            style={[styles.input, { flex: 1, marginBottom: 0 }]}
+            placeholder={`Teléfono`}
+            value={tel}
+            onChangeText={(v) => actualizarTelefono(index, v)}
+            keyboardType="phone-pad"
+          />
+          {telefonos.length > 1 && (
+            <TouchableOpacity onPress={() => eliminarTelefono(index)} style={{ marginLeft: 8 }}>
+              <Text style={{ color: 'red', fontSize: 20 }}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ))}
+      <TouchableOpacity onPress={agregarTelefono} style={{ marginBottom: 12 }}>
+        <Text style={{ color: '#1a73e8' }}>+ Agregar teléfono</Text>
+      </TouchableOpacity>
 
       <Text style={styles.seccion}>Dirección</Text>
       <TextInput style={styles.input} placeholder="País" value={form.direccionPais} onChangeText={v => setForm({...form, direccionPais: v})} />
