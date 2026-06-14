@@ -1,18 +1,20 @@
--- Usuario
+-- Funcionario de prueba (contraseña: 123456)
 INSERT INTO Usuario (
     mail, password, documento_tipo, documento_numeroDoc,
     direccion_calle, direccion_numero, direccion_codigoPostal,
     direccion_pais, direccion_localidad
 ) VALUES (
     'funcionario@test.com',
-    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
-    'CI', '33333333',
-    'Av. Italia', '200', '11600',
+    '$2a$10$SKPFrxz96JA7z76SdlyI.ehBB/9hppEx8.wOLonpFsuZkbr8Svhhy',
+    'CI', '22222222',
+    'Av. Italia', '100', '11600',
     'Uruguay', 'Montevideo'
 );
 
--- Perfil (será id=6)
 INSERT INTO Perfil (mailUsuario) VALUES ('funcionario@test.com');
 
--- Funcionario con id=6
-INSERT INTO Funcionario (id_funcionario, nroLegajo) VALUES (6, 'LEG-001');
+INSERT INTO General (id_general, estado_verificacion_id, fecha_registro)
+SELECT id, 'activo', CURDATE() FROM Perfil WHERE mailUsuario = 'funcionario@test.com';
+
+INSERT INTO Funcionario (id_funcionario, nro_legajo)
+SELECT id, 'LEG-001' FROM Perfil WHERE mailUsuario = 'funcionario@test.com';
