@@ -168,7 +168,7 @@ export default function EventosScreen() {
                 <Text style={styles.cardDetalle}>📍 {item.estadioDireccionCiudad}, {item.estadioDireccionPais}</Text>
                 <Text style={styles.cardDetalle}>{formatearFecha(item.fechaHoraPartido)}</Text>
               </View>
-                {tabActiva === 'proximos' && (
+                {usuario?.rol === 'GENERAL' && tabActiva === 'proximos' && (
                   <TouchableOpacity style={styles.botonComprar} onPress={() => abrirEvento(item)}>
                     <Text style={styles.botonComprarTexto}>Comprar</Text>
                   </TouchableOpacity>

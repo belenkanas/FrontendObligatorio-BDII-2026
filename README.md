@@ -1,4 +1,4 @@
-## Levantar el frontend
+## 1. Levantar el frontend
 
 ```bash
 cd frontend
@@ -14,18 +14,28 @@ Opciones al iniciar Expo:
 
 ---
 
-## Endpoints principales
+## 2. Registrarse y usar la app
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| POST | `/auth/registro` | Registrar nuevo usuario |
-| POST | `/auth/login` | Iniciar sesión |
-| GET | `/eventos` | Listar eventos disponibles |
-| GET | `/entradas` | Listar entradas |
-| POST | `/ventas` | Crear una venta |
-| GET | `/sectores` | Listar sectores |
-| GET | `/estadios` | Listar estadios |
-| GET | `/equipos` | Listar equipos |
-| GET | `/partidos` | Listar partidos |
+1. Abrí la app y registrate con tus datos
+2. El usuario queda automáticamente como **Usuario General**
+3. Podes comprar entradas, transferirlas y ver tus tickets
 
 ---
+
+## 3. Configuración inicial del administrador
+
+Al registrarse, todo usuario queda como Usuario General. Para asignar el rol de Administrador al primer usuario del sistema, seguir estos pasos **una única vez**:
+
+1. Registrarse normalmente en la aplicación
+2. Conectarse a la base de datos con DataGrip
+3. Verificar el `id` del perfil creado en la tabla `perfil`
+4. Ejecutar los siguientes comandos reemplazando `{id}` con ese valor:
+
+```sql
+DELETE FROM general WHERE id_general = {id};
+
+INSERT INTO administrador (id_administrador, fecha_asignado, paisSede)
+VALUES ({id}, CURDATE(), 'México'); -- o 'Canadá' / 'Estados Unidos'
+```
+
+A partir de entonces, el administrador puede gestionar roles de otros usuarios directamente desde la aplicación.
