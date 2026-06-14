@@ -29,13 +29,13 @@ function CustomDrawer(props: any) {
       {rol === 'ADMINISTRADOR' && (
         <>
           <DrawerItem label="Eventos" onPress={() => router.push('/eventos')} />
-          <DrawerItem label="Usuarios" onPress={() => router.push('/admin-usuarios' as any)} />
-          <DrawerItem label="Estadísticas" onPress={() => router.push('/admin-estadisticas' as any)} />
+          <DrawerItem label="Usuarios" onPress={() => router.push('/admin-usuarios')} />
+          <DrawerItem label="Estadísticas" onPress={() => router.push('/admin-estadisticas')} />
         </>
       )}
 
       {rol === 'FUNCIONARIO' && (
-        <DrawerItem label="Mi panel" onPress={() => router.push('/funcionario' as any)} />
+        <DrawerItem label="Mi panel" onPress={() => router.push('/funcionario')} />
       )}
 
       <DrawerItem label="Perfil" onPress={() => router.push('/perfil')} />
