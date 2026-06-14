@@ -1,7 +1,7 @@
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Drawer } from 'expo-router/drawer';
-import { DrawerContentScrollView, DrawerItem } from '@react-navigation/drawer';
+import { DrawerContentScrollView, DrawerItem } from 'expo-router/drawer';
 import { useRouter } from 'expo-router';
 import { Text, View, StyleSheet } from 'react-native';
 
