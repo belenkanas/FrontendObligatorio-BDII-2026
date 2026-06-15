@@ -25,12 +25,17 @@ function extraerListaEventos(data: any): any[] {
 }
 
 function parseFecha(rawFecha: any) {
-    if (!rawFecha) {
-        return null;
-    }
+                if (!rawFecha) return null;
 
-    const fecha = new Date(rawFecha);
-    return Number.isNaN(fecha.getTime()) ? null : fecha;
+                // LocalDateTime de Java llega como array: [2024, 6, 15, 20, 30, 0]
+                if (Array.isArray(rawFecha)) {
+                    const [year, month, day, hour = 0, minute = 0, second = 0] = rawFecha;
+                    const fecha = new Date(year, month - 1, day, hour, minute, second); // month - 1 porque JS usa 0-indexed
+                    return Number.isNaN(fecha.getTime()) ? null : fecha;
+                }
+
+                const fecha = new Date(rawFecha);
+                return Number.isNaN(fecha.getTime()) ? null : fecha;
 }
 
 function formatearFecha(fecha: Date | null) {
@@ -59,7 +64,7 @@ function normalizarEventos(data: any, asignadoPorDefecto = false): EventoFuncion
             const fecha = parseFecha(fechaRaw);
             const estadio = evento?.id?.estadioNombre ?? evento?.estadio ?? evento?.stadium;
             const ubicacion = evento?.id?.estadioDireccionCiudad ?? evento?.ubicacion ?? evento?.city;
-            const nombreBase = evento?.nombre ?? evento?.titulo ?? evento?.descripcion;
+            const nombreBase = evento?.nombre ?? evento?.titulo ?? evento?.descripcion ?? `${evento?.id?.nombrePaisEquipoLocal ?? ''} vs ${evento?.id?.nombrePaisEquipoVisitante ?? ''}`;
             const entradasEscaneadas = toNumero(
                 evento?.entradasEscaneadas ?? evento?.ticketsEscaneados ?? evento?.escaneadas ?? evento?.cantEntradasEscaneadas,
             );
@@ -80,23 +85,22 @@ function normalizarEventos(data: any, asignadoPorDefecto = false): EventoFuncion
         .filter((evento: EventoFuncionario) => evento.nombre);
 }
 
-async function cargarEventosFuncionario() {
-    const endpoints = ['/funcionario/eventos', '/funcionarios/eventos', '/eventos/asignados', '/eventos'];
+async function cargarEventosFuncionario(idPerfil: number) {
+    const [asignaciones, eventos] = await Promise.all([
+        api.get(`/funcionarios/${idPerfil}/eventos`),
+        api.get(`/eventos`),
+    ]);
 
-    for (const endpoint of endpoints) {
-        try {
-            const response = await api.get(endpoint);
-            const eventos = normalizarEventos(response.data, endpoint !== '/eventos');
+    const estadiosAsignados = new Set(
+        asignaciones.data.map((a: any) => a.id?.estadioNombre)
+    );
 
-            if (eventos.length > 0) {
-                return eventos;
-            }
-        } catch (error) {
-            continue;
-        }
-    }
+    const eventosFiltrados = eventos.data.filter((e: any) =>
+        estadiosAsignados.has(e.id?.estadioNombre)
+    );
 
-    throw new Error('No se pudo cargar la informacion del funcionario.');
+    console.log('Eventos filtrados:', JSON.stringify(eventosFiltrados, null, 2));
+    return normalizarEventos(eventosFiltrados);
 }
 
 export default function FuncionarioScreen() {
@@ -107,17 +111,21 @@ export default function FuncionarioScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState('');
+    console.log('usuario:', usuario);
+    console.log('esUsuarioFuncionario:', esUsuarioFuncionario);
 
     useEffect(() => {
-        if (usuario && !esUsuarioFuncionario) {
-            router.replace('/eventos');
-        }
-    }, [esUsuarioFuncionario, router, usuario]);
+    if (!usuario) return; // todavía cargando, no hacer nada
 
-    const cargarDatos = async () => {
+    if (!esUsuarioFuncionario) {
+        router.replace('/eventos');
+    }
+}, [esUsuarioFuncionario, router, usuario]);
+
+        const cargarDatos = async () => {
         try {
             setError('');
-            const respuesta = await cargarEventosFuncionario();
+            const respuesta = await cargarEventosFuncionario(usuario.idPerfil);
             setEventos(respuesta);
         } catch (err) {
             setEventos([]);
@@ -164,6 +172,8 @@ export default function FuncionarioScreen() {
                 <Text style={styles.estadoTexto}>Cargando panel...</Text>
             </View>
         );
+
+    
     }
 
     return (
@@ -180,20 +190,6 @@ export default function FuncionarioScreen() {
                 <Text style={styles.subtitulo}>Controla tus eventos asignados, los proximos turnos y cuantas entradas escaneaste por partido.</Text>
             </View>
 
-            <View style={styles.resumenGrid}>
-                <View style={styles.resumenCard}>
-                    <Text style={styles.resumenNumero}>{eventos.length}</Text>
-                    <Text style={styles.resumenEtiqueta}>Eventos asignados</Text>
-                </View>
-                <View style={styles.resumenCard}>
-                    <Text style={styles.resumenNumero}>{eventosFuturos.length}</Text>
-                    <Text style={styles.resumenEtiqueta}>Proximos</Text>
-                </View>
-                <View style={styles.resumenCard}>
-                    <Text style={styles.resumenNumero}>{totalEscaneadas}</Text>
-                    <Text style={styles.resumenEtiqueta}>Escaneadas</Text>
-                </View>
-            </View>
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
