@@ -68,8 +68,8 @@ function normalizarEventos(data: any, asignadoPorDefecto = false): EventoFuncion
             const entradasEscaneadas = toNumero(
                 evento?.entradasEscaneadas ?? evento?.ticketsEscaneados ?? evento?.escaneadas ?? evento?.cantEntradasEscaneadas,
             );
-            const entradasTotalesRaw = evento?.entradasTotales ?? evento?.ticketsTotales ?? evento?.cuposTotales ?? evento?.capacidad;
-
+            const entradasTotalesRaw = evento?.capacidadTotal ?? evento?.entradasTotales ?? evento?.ticketsTotales ?? evento?.cuposTotales ?? evento?.capacidad;
+            
             return {
                 id: evento?.idEvento ?? evento?.id ?? evento?.eventoId ?? JSON.stringify(evento?.id) ?? index,
                 nombre: nombreBase || [estadio, formatearFecha(fecha)].filter(Boolean).join(' - ') || 'Evento sin nombre',
@@ -86,9 +86,10 @@ function normalizarEventos(data: any, asignadoPorDefecto = false): EventoFuncion
 }
 
 async function cargarEventosFuncionario(idPerfil: number) {
-    const [asignaciones, eventos] = await Promise.all([
+    const [asignaciones, eventos, sectores] = await Promise.all([
         api.get(`/funcionarios/${idPerfil}/eventos`),
         api.get(`/eventos`),
+        api.get(`/sectores`),
     ]);
 
     const estadiosAsignados = new Set(
@@ -99,18 +100,43 @@ async function cargarEventosFuncionario(idPerfil: number) {
         estadiosAsignados.has(e.id?.estadioNombre)
     );
 
-    console.log('Eventos filtrados:', JSON.stringify(eventosFiltrados, null, 2));
-    return normalizarEventos(eventosFiltrados);
+    // Sumar capacidad por estadio
+    const capacidadPorEstadio: Record<string, number> = {};
+    sectores.data.forEach((s: any) => {
+        const key = s.id?.estadioNombre;
+        if (key) {
+            capacidadPorEstadio[key] = (capacidadPorEstadio[key] ?? 0) + toNumero(s.capacidadMax ?? s.id?.capacidadMax ?? s.capacidad_max);
+        }
+    });
+
+    // Inyectar capacidad total en cada evento
+    const eventosConCapacidad = eventosFiltrados.map((e: any) => ({
+        ...e,
+        capacidadTotal: capacidadPorEstadio[e.id?.estadioNombre] ?? undefined,
+    }));
+
+    return normalizarEventos(eventosConCapacidad);
+}
+
+async function cargarDispositivoFuncionario(idPerfil: number) {
+    const funcionario = await api.get(`/funcionarios/${idPerfil}`);
+    const nroLegajo = funcionario.data?.nroLegajo;
+    if (!nroLegajo) return null;
+
+    const dispositivos = await api.get('/dispositivos');
+    const dispositivo = dispositivos.data.find((d: any) => d.nroLegajo === nroLegajo);
+    return dispositivo ?? null;
 }
 
 export default function FuncionarioScreen() {
     const router = useRouter();
     const { usuario } = useAuth();
     const esUsuarioFuncionario = useMemo(() => esFuncionario(usuario), [usuario]);
-    const [eventos, setEventos] = useState<EventoFuncionario[]>([]);
+   const [eventos, setEventos] = useState<EventoFuncionario[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState('');
+    const [dispositivo, setDispositivo] = useState<{ id: number; nroLegajo: string } | null>(null);
     console.log('usuario:', usuario);
     console.log('esUsuarioFuncionario:', esUsuarioFuncionario);
 
@@ -122,19 +148,22 @@ export default function FuncionarioScreen() {
     }
 }, [esUsuarioFuncionario, router, usuario]);
 
-        const cargarDatos = async () => {
-        try {
-            setError('');
-            const respuesta = await cargarEventosFuncionario(usuario.idPerfil);
-            setEventos(respuesta);
-        } catch (err) {
-            setEventos([]);
-            setError('No pudimos cargar el panel de funcionario.');
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    };
+const cargarDatos = async () => {
+    try {
+        setError('');
+        const respuesta = await cargarEventosFuncionario(usuario.idPerfil);
+        setEventos(respuesta);
+
+        const disp = await cargarDispositivoFuncionario(usuario.idPerfil);
+        setDispositivo(disp);
+    } catch (err) {
+        setEventos([]);
+        setError('No pudimos cargar el panel de funcionario.');
+    } finally {
+        setLoading(false);
+        setRefreshing(false);
+    }
+};
 
     useEffect(() => {
         if (esUsuarioFuncionario) {
@@ -188,6 +217,17 @@ export default function FuncionarioScreen() {
                 <Text style={styles.kicker}>FUNCIONARIO</Text>
                 <Text style={styles.titulo}>Panel de trabajo</Text>
                 <Text style={styles.subtitulo}>Controla tus eventos asignados, los proximos turnos y cuantas entradas escaneaste por partido.</Text>
+                {dispositivo ? (
+    <View style={{ marginTop: 14, backgroundColor: '#1e293b', borderRadius: 12, padding: 12 }}>
+        <Text style={{ color: '#93c5fd', fontSize: 11, fontWeight: '800', letterSpacing: 1.2 }}>DISPOSITIVO ASIGNADO</Text>
+        <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '800', marginTop: 4 }}>ID #{dispositivo.id}</Text>
+        <Text style={{ color: '#cbd5e1', fontSize: 12, marginTop: 2 }}>Legajo: {dispositivo.nroLegajo}</Text>
+    </View>
+) : (
+    <View style={{ marginTop: 14, backgroundColor: '#1e293b', borderRadius: 12, padding: 12 }}>
+        <Text style={{ color: '#f87171', fontSize: 13, fontWeight: '700' }}>Sin dispositivo asignado</Text>
+    </View>
+)}
             </View>
 
 
