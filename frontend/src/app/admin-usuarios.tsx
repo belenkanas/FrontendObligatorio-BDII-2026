@@ -45,7 +45,7 @@ export default function AdminUsuariosScreen() {
       const perfiles  = Array.isArray(perfilRes.data) ? perfilRes.data : [];
 
       if (perfiles.length === 0) {
-        setError('Usuario no encontrado');
+        setError('No existe un usuario registrado con ese correo electrónico');;
         return;
       }
 
@@ -62,6 +62,15 @@ export default function AdminUsuariosScreen() {
         const funcRes = await api.get(`/funcionarios/${idPerfil}`);
         if (funcRes.data) rol = 'FUNCIONARIO';
       } catch { /* no es funcionario */ }
+
+      // Verificar si es usuario GENERAL
+      try {
+        const generalRes = await api.get(`/generales/${idPerfil}`);
+        if (generalRes.data) rol = 'GENERAL';
+      } catch {
+        // no es general
+      }
+
 
       setUsuario({ idPerfil, mail: mail.trim(), rol });
       setNuevoRol(rol);
@@ -105,11 +114,17 @@ export default function AdminUsuariosScreen() {
     <ScrollView style={s.root} contentContainerStyle={s.contenedor}>
       <Text style={s.titulo}>Gestión de usuarios</Text>
 
+      <Text style={s.descripcion}>
+        Ingresá el correo electrónico del usuario para verificar sus datos
+        y modificar su rol dentro del sistema.
+        Esta acción solo está disponible para administradores.
+      </Text>
+
       {/* Buscador */}
       <View style={s.busqueda}>
         <TextInput
           style={s.input}
-          placeholder="Correo electrónico del usuario"
+          placeholder="Ingresá el correo del usuario a modificar"
           value={mail}
           onChangeText={setMail}
           keyboardType="email-address"
@@ -169,7 +184,7 @@ const s = StyleSheet.create({
   root:       { flex: 1, backgroundColor: '#f6f8fc' },
   contenedor: { padding: 24 },
   titulo:     { fontSize: 24, fontWeight: 'bold', color: '#111827', marginBottom: 16 },
-
+  descripcion: { fontSize: 14, color: '#6b7280', marginBottom: 16, lineHeight: 20},
   busqueda:   { flexDirection: 'row', gap: 8, marginBottom: 12 },
   input:      { flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, fontSize: 16, backgroundColor: '#fff' },
   botonBuscar:{ backgroundColor: '#1a73e8', padding: 12, borderRadius: 8, justifyContent: 'center' },
