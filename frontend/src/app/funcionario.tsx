@@ -2,7 +2,8 @@ import api from '../../services/api';
 import { esFuncionario, useAuth } from '@/context/AuthContext';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, Modal, Alert } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 
 type EventoFuncionario = {
     id: number | string;
@@ -25,17 +26,17 @@ function extraerListaEventos(data: any): any[] {
 }
 
 function parseFecha(rawFecha: any) {
-                if (!rawFecha) return null;
+    if (!rawFecha) return null;
 
-                // LocalDateTime de Java llega como array: [2024, 6, 15, 20, 30, 0]
-                if (Array.isArray(rawFecha)) {
-                    const [year, month, day, hour = 0, minute = 0, second = 0] = rawFecha;
-                    const fecha = new Date(year, month - 1, day, hour, minute, second); // month - 1 porque JS usa 0-indexed
-                    return Number.isNaN(fecha.getTime()) ? null : fecha;
-                }
+    // LocalDateTime de Java llega como array: [2024, 6, 15, 20, 30, 0]
+    if (Array.isArray(rawFecha)) {
+        const [year, month, day, hour = 0, minute = 0, second = 0] = rawFecha;
+        const fecha = new Date(year, month - 1, day, hour, minute, second); // month - 1 porque JS usa 0-indexed
+        return Number.isNaN(fecha.getTime()) ? null : fecha;
+    }
 
-                const fecha = new Date(rawFecha);
-                return Number.isNaN(fecha.getTime()) ? null : fecha;
+    const fecha = new Date(rawFecha);
+    return Number.isNaN(fecha.getTime()) ? null : fecha;
 }
 
 function formatearFecha(fecha: Date | null) {
@@ -69,7 +70,7 @@ function normalizarEventos(data: any, asignadoPorDefecto = false): EventoFuncion
                 evento?.entradasEscaneadas ?? evento?.ticketsEscaneados ?? evento?.escaneadas ?? evento?.cantEntradasEscaneadas,
             );
             const entradasTotalesRaw = evento?.capacidadTotal ?? evento?.entradasTotales ?? evento?.ticketsTotales ?? evento?.cuposTotales ?? evento?.capacidad;
-            
+
             return {
                 id: evento?.idEvento ?? evento?.id ?? evento?.eventoId ?? JSON.stringify(evento?.id) ?? index,
                 nombre: nombreBase || [estadio, formatearFecha(fecha)].filter(Boolean).join(' - ') || 'Evento sin nombre',
@@ -86,10 +87,10 @@ function normalizarEventos(data: any, asignadoPorDefecto = false): EventoFuncion
 }
 
 async function cargarEventosFuncionario(idPerfil: number) {
-    const [asignaciones, eventos, sectores] = await Promise.all([
+    const [asignaciones, eventos, entradas] = await Promise.all([
         api.get(`/funcionarios/${idPerfil}/eventos`),
         api.get(`/eventos`),
-        api.get(`/sectores`),
+        api.get(`/entradas`),
     ]);
 
     const estadiosAsignados = new Set(
@@ -100,22 +101,32 @@ async function cargarEventosFuncionario(idPerfil: number) {
         estadiosAsignados.has(e.id?.estadioNombre)
     );
 
-    // Sumar capacidad por estadio
-    const capacidadPorEstadio: Record<string, number> = {};
-    sectores.data.forEach((s: any) => {
-        const key = s.id?.estadioNombre;
-        if (key) {
-            capacidadPorEstadio[key] = (capacidadPorEstadio[key] ?? 0) + toNumero(s.capacidadMax ?? s.id?.capacidadMax ?? s.capacidad_max);
-        }
+    // Contar entradas vendidas por evento (estadio + fecha + equipos)
+    const vendidasPorEvento: Record<string, number> = {};
+    entradas.data.forEach((en: any) => {
+        const key = [
+            en.id?.estadioNombre ?? en.estadioNombre,
+            en.id?.fechaHoraPartido ?? en.fechaHoraPartido,
+            en.id?.nombrePaisEquipoLocal ?? en.nombrePaisEquipoLocal,
+            en.id?.nombrePaisEquipoVisitante ?? en.nombrePaisEquipoVisitante,
+        ].join('|');
+        vendidasPorEvento[key] = (vendidasPorEvento[key] ?? 0) + 1;
     });
 
-    // Inyectar capacidad total en cada evento
-    const eventosConCapacidad = eventosFiltrados.map((e: any) => ({
-        ...e,
-        capacidadTotal: capacidadPorEstadio[e.id?.estadioNombre] ?? undefined,
-    }));
+    const eventosConVentas = eventosFiltrados.map((e: any) => {
+        const key = [
+            e.id?.estadioNombre,
+            e.id?.fechaHoraPartido,
+            e.id?.nombrePaisEquipoLocal,
+            e.id?.nombrePaisEquipoVisitante,
+        ].join('|');
+        return {
+            ...e,
+            capacidadTotal: vendidasPorEvento[key] ?? 0,
+        };
+    });
 
-    return normalizarEventos(eventosConCapacidad);
+    return normalizarEventos(eventosConVentas);
 }
 
 async function cargarDispositivoFuncionario(idPerfil: number) {
@@ -132,38 +143,42 @@ export default function FuncionarioScreen() {
     const router = useRouter();
     const { usuario } = useAuth();
     const esUsuarioFuncionario = useMemo(() => esFuncionario(usuario), [usuario]);
-   const [eventos, setEventos] = useState<EventoFuncionario[]>([]);
+    const [eventos, setEventos] = useState<EventoFuncionario[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState('');
     const [dispositivo, setDispositivo] = useState<{ id: number; nroLegajo: string } | null>(null);
-    console.log('usuario:', usuario);
-    console.log('esUsuarioFuncionario:', esUsuarioFuncionario);
+
+    // Estado del escaneo QR
+    const [eventoSeleccionado, setEventoSeleccionado] = useState<EventoFuncionario | null>(null);
+    const [escaneoActivo, setEscaneoActivo] = useState(false);
+    const [permiso, requestPermiso] = useCameraPermissions();
+    const [procesando, setProcesando] = useState(false);
 
     useEffect(() => {
-    if (!usuario) return; // todavía cargando, no hacer nada
+        if (!usuario) return; // todavía cargando, no hacer nada
 
-    if (!esUsuarioFuncionario) {
-        router.replace('/eventos');
-    }
-}, [esUsuarioFuncionario, router, usuario]);
+        if (!esUsuarioFuncionario) {
+            router.replace('/eventos');
+        }
+    }, [esUsuarioFuncionario, router, usuario]);
 
-const cargarDatos = async () => {
-    try {
-        setError('');
-        const respuesta = await cargarEventosFuncionario(usuario.idPerfil);
-        setEventos(respuesta);
+    const cargarDatos = async () => {
+        try {
+            setError('');
+            const respuesta = await cargarEventosFuncionario(usuario.idPerfil);
+            setEventos(respuesta);
 
-        const disp = await cargarDispositivoFuncionario(usuario.idPerfil);
-        setDispositivo(disp);
-    } catch (err) {
-        setEventos([]);
-        setError('No pudimos cargar el panel de funcionario.');
-    } finally {
-        setLoading(false);
-        setRefreshing(false);
-    }
-};
+            const disp = await cargarDispositivoFuncionario(usuario.idPerfil);
+            setDispositivo(disp);
+        } catch (err) {
+            setEventos([]);
+            setError('No pudimos cargar el panel de funcionario.');
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
 
     useEffect(() => {
         if (esUsuarioFuncionario) {
@@ -171,6 +186,41 @@ const cargarDatos = async () => {
             cargarDatos();
         }
     }, [esUsuarioFuncionario]);
+
+    const abrirEscaneo = async (evento: EventoFuncionario) => {
+        if (!permiso?.granted) {
+            const resultado = await requestPermiso();
+            if (!resultado.granted) {
+                Alert.alert('Permiso requerido', 'Necesitamos acceso a la cámara para escanear entradas.');
+                return;
+            }
+        }
+        setEventoSeleccionado(evento);
+        setEscaneoActivo(true);
+    };
+
+    const cerrarEscaneo = () => {
+        setEscaneoActivo(false);
+        setEventoSeleccionado(null);
+        setProcesando(false);
+    };
+
+    const handleQRDetectado = async ({ data }: { data: string }) => {
+        if (procesando) return;
+        setProcesando(true);
+
+        try {
+            const response = await api.post('/validacion/escanear', {
+                qr: data,
+                idFuncionario: usuario.idPerfil,
+            });
+            Alert.alert('Entrada válida', response.data?.mensaje ?? 'El ingreso fue registrado correctamente.');
+        } catch (err: any) {
+            Alert.alert('Entrada inválida', err.response?.data ?? 'No se pudo validar el QR.');
+        } finally {
+            setTimeout(() => setProcesando(false), 2000);
+        }
+    };
 
     const eventosFuturos = eventos.filter((evento) => evento.esFuturo);
     const eventosPasados = eventos.filter((evento) => !evento.esFuturo);
@@ -201,11 +251,10 @@ const cargarDatos = async () => {
                 <Text style={styles.estadoTexto}>Cargando panel...</Text>
             </View>
         );
-
-    
     }
 
     return (
+        <>
         <ScrollView
             style={styles.fondo}
             contentContainerStyle={styles.container}
@@ -218,18 +267,17 @@ const cargarDatos = async () => {
                 <Text style={styles.titulo}>Panel de trabajo</Text>
                 <Text style={styles.subtitulo}>Controla tus eventos asignados, los proximos turnos y cuantas entradas escaneaste por partido.</Text>
                 {dispositivo ? (
-    <View style={{ marginTop: 14, backgroundColor: '#1e293b', borderRadius: 12, padding: 12 }}>
-        <Text style={{ color: '#93c5fd', fontSize: 11, fontWeight: '800', letterSpacing: 1.2 }}>DISPOSITIVO ASIGNADO</Text>
-        <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '800', marginTop: 4 }}>ID #{dispositivo.id}</Text>
-        <Text style={{ color: '#cbd5e1', fontSize: 12, marginTop: 2 }}>Legajo: {dispositivo.nroLegajo}</Text>
-    </View>
-) : (
-    <View style={{ marginTop: 14, backgroundColor: '#1e293b', borderRadius: 12, padding: 12 }}>
-        <Text style={{ color: '#f87171', fontSize: 13, fontWeight: '700' }}>Sin dispositivo asignado</Text>
-    </View>
-)}
+                    <View style={{ marginTop: 14, backgroundColor: '#1e293b', borderRadius: 12, padding: 12 }}>
+                        <Text style={{ color: '#93c5fd', fontSize: 11, fontWeight: '800', letterSpacing: 1.2 }}>DISPOSITIVO ASIGNADO</Text>
+                        <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '800', marginTop: 4 }}>ID #{dispositivo.id}</Text>
+                        <Text style={{ color: '#cbd5e1', fontSize: 12, marginTop: 2 }}>Legajo: {dispositivo.nroLegajo}</Text>
+                    </View>
+                ) : (
+                    <View style={{ marginTop: 14, backgroundColor: '#1e293b', borderRadius: 12, padding: 12 }}>
+                        <Text style={{ color: '#f87171', fontSize: 13, fontWeight: '700' }}>Sin dispositivo asignado</Text>
+                    </View>
+                )}
             </View>
-
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -248,7 +296,7 @@ const cargarDatos = async () => {
                 </View>
             ) : (
                 eventosFuturos.map((evento) => (
-                    <View key={String(evento.id)} style={styles.card}>
+                    <TouchableOpacity key={String(evento.id)} style={styles.card} onPress={() => abrirEscaneo(evento)}>
                         <View style={styles.cardTop}>
                             <View style={styles.cardInfo}>
                                 <Text style={styles.cardTitulo}>{evento.nombre}</Text>
@@ -270,7 +318,9 @@ const cargarDatos = async () => {
                                 <Text style={styles.metricLabel}>Total</Text>
                             </View>
                         </View>
-                    </View>
+
+                        <Text style={styles.escanearTexto}>Tocá para escanear entradas →</Text>
+                    </TouchableOpacity>
                 ))
             )}
 
@@ -308,6 +358,39 @@ const cargarDatos = async () => {
                 ))
             )}
         </ScrollView>
+
+        <Modal visible={escaneoActivo} animationType="slide" onRequestClose={cerrarEscaneo}>
+            <View style={styles.modalContainer}>
+                <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitulo}>Escanear entradas</Text>
+                    <Text style={styles.modalSubtitulo}>{eventoSeleccionado?.nombre}</Text>
+                </View>
+
+                {permiso?.granted ? (
+                    <CameraView
+                        style={styles.camera}
+                        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                        onBarcodeScanned={procesando ? undefined : handleQRDetectado}
+                    />
+                ) : (
+                    <View style={styles.estadoContainer}>
+                        <Text style={styles.estadoTexto}>Necesitamos permiso de cámara para escanear.</Text>
+                    </View>
+                )}
+
+                {procesando ? (
+                    <View style={styles.procesandoBanner}>
+                        <ActivityIndicator color="#fff" />
+                        <Text style={styles.procesandoTexto}>Procesando...</Text>
+                    </View>
+                ) : null}
+
+                <TouchableOpacity style={styles.botonCerrarModal} onPress={cerrarEscaneo}>
+                    <Text style={styles.botonCerrarModalTexto}>Cerrar</Text>
+                </TouchableOpacity>
+            </View>
+        </Modal>
+        </>
     );
 }
 
@@ -483,5 +566,59 @@ const styles = StyleSheet.create({
         color: '#b91c1c',
         textAlign: 'center',
         marginBottom: 10,
+    },
+    escanearTexto: {
+        marginTop: 12,
+        color: '#1a73e8',
+        fontWeight: '700',
+        fontSize: 13,
+        textAlign: 'right',
+    },
+    modalContainer: {
+        flex: 1,
+        backgroundColor: '#0f172a',
+    },
+    modalHeader: {
+        padding: 20,
+        paddingTop: 60,
+    },
+    modalTitulo: {
+        color: '#ffffff',
+        fontSize: 22,
+        fontWeight: '800',
+    },
+    modalSubtitulo: {
+        color: '#cbd5e1',
+        fontSize: 14,
+        marginTop: 4,
+    },
+    camera: {
+        flex: 1,
+    },
+    procesandoBanner: {
+        position: 'absolute',
+        bottom: 100,
+        alignSelf: 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#1e293b',
+        borderRadius: 12,
+        padding: 14,
+        gap: 10,
+    },
+    procesandoTexto: {
+        color: '#ffffff',
+        fontWeight: '700',
+    },
+    botonCerrarModal: {
+        margin: 20,
+        backgroundColor: '#b91c1c',
+        borderRadius: 12,
+        padding: 16,
+        alignItems: 'center',
+    },
+    botonCerrarModalTexto: {
+        color: '#ffffff',
+        fontWeight: '800',
     },
 });
