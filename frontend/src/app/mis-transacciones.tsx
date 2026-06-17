@@ -16,8 +16,9 @@ type Transferencia = {
 
 const COLORES_ESTADO: Record<string, string> = {
   pendiente: '#b45309',
-  aceptado: '#15803d',
-  rechazado: '#b91c1c',
+  aceptada: '#15803d',
+  rechazada: '#b91c1c',
+  cancelada: '#6b7280',
 };
 
 export default function MisTransaccionesScreen() {
@@ -121,7 +122,7 @@ export default function MisTransaccionesScreen() {
                 <View style={styles.cardHeader}>
                   <Text style={styles.cardTitulo}>Entrada #{item.id.idEntrada} - {item.entrada?.nombrePaisEquipoLocal} vs {item.entrada?.nombrePaisEquipoVisitante}</Text>
                   <Text style={[styles.estado, { color: COLORES_ESTADO[item.estado] ?? '#374151' }]}>
-                    {item.estado === 'aceptado' ? 'ACEPTADA' : item.estado === 'rechazado' ? 'RECHAZADA' : item.estado.toUpperCase()}
+                    {item.estado.toUpperCase()}
                   </Text>
                 </View>
                 {item.entrada && (

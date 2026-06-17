@@ -1,7 +1,7 @@
 import api from '../../../services/api';
 import { useAuth } from '@/context/AuthContext';
-import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Entrada = {
@@ -60,9 +60,9 @@ export default function VentaDetalleScreen() {
     }
   };
 
-  const entradasActivas = entradas.filter(e => e.estado === 'activo');
+  const entradasActivas = entradas.filter(e => e.estado === 'activa');
   const entradasEnTransferencia = entradas.filter(e => e.estado === 'en_transferencia');
-  const entradasInactivas = entradas.filter(e => ['transferido', 'consumido', 'no_consumida'].includes(e.estado));
+  const entradasInactivas = entradas.filter(e => ['transferida', 'consumida', 'no_consumida'].includes(e.estado));
 
   const formatearFecha = (fecha: string) => new Date(fecha).toLocaleDateString('es-UY', {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
