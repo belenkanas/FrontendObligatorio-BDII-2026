@@ -10,6 +10,7 @@
     "@react-navigation/drawer": "^7.12.2",
     "axios": "^1.17.0",
     "expo": "~56.0.9",
+    "expo-camera": "~56.0.8",
     "expo-constants": "~56.0.17",
     "expo-device": "~56.0.4",
     "expo-font": "~56.0.5",
