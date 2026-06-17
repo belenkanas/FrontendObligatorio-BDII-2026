@@ -1,3 +1,9 @@
+# Mundial 2026 — Sistema de Ticketing Digital - Frontend
+
+Sistema integral de ticketing para partidos del Mundial 2026. 
+
+---
+
 ## 1. Levantar el frontend
 
 ```bash
@@ -26,10 +32,11 @@ Opciones al iniciar Expo:
 
 Al registrarse, todo usuario queda como Usuario General. Para asignar el rol de Administrador al primer usuario del sistema, seguir estos pasos **una única vez**:
 
-1. Registrarse normalmente en la aplicación
-2. Conectarse a la base de datos con DataGrip
-3. Verificar el `id` del perfil creado en la tabla `perfil`
-4. Ejecutar los siguientes comandos reemplazando `{id}` con ese valor:
+Luego de registrarse en el paso 2.:
+
+1. Conectarse a la base de datos con DataGrip
+2. Verificar el `id` del perfil creado en la tabla `perfil`
+3. Ejecutar los siguientes comandos reemplazando `{id}` con ese valor:
 
 ```sql
 DELETE FROM general WHERE id_general = {id};

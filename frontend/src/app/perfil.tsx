@@ -29,6 +29,8 @@ export default function PerfilScreen() {
     router.replace('/login');
   };
 
+  const estadoVerificacion = usuario?.estadoVerificacionIdentidad ?? 'pendiente';
+
   if (loading) return <View style={styles.centro}><ActivityIndicator size="large" color="#1a73e8" /></View>;
 
   return (
@@ -36,6 +38,18 @@ export default function PerfilScreen() {
       <Text style={styles.titulo}>Mi perfil</Text>
       <Text style={styles.mail}>{usuario?.mail}</Text>
       <Text style={styles.rol}>Rol: {usuario?.rol}</Text>
+      {usuario?.rol === 'GENERAL' ? (
+        <Text style={styles.estadoVerificacion}>
+          <Text style={styles.estadoLabel}>Estado de verificación: </Text>
+          <Text
+            style={estadoVerificacion === 'verificado' ? styles.estadoVerificado
+                : estadoVerificacion === 'rechazado' ? styles.estadoRechazado
+                : styles.estadoPendiente
+            }>
+              {estadoVerificacion}
+          </Text>
+        </Text>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.seccion}>Documento</Text>
@@ -69,11 +83,16 @@ const styles = StyleSheet.create({
   centro: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   titulo: { fontSize: 24, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
   mail: { fontSize: 16, color: '#6b7280', marginBottom: 2 },
-  rol: { fontSize: 13, color: '#1a73e8', fontWeight: '700', marginBottom: 16, textTransform: 'uppercase' },
+  rol: { fontSize: 13, color: '#1a73e8', fontWeight: '700', marginBottom: 5, textTransform: 'uppercase' },
   card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 16, elevation: 2 },
   seccion: { fontSize: 15, fontWeight: '700', color: '#374151', marginTop: 12, marginBottom: 4 },
   label: { fontSize: 12, color: '#6b7280', marginTop: 8, textTransform: 'uppercase', fontWeight: '700' },
   valor: { fontSize: 15, color: '#111827', marginTop: 2 },
+  estadoVerificacion: { fontSize: 13, fontWeight: '700', marginBottom: 16, color: '#6b7280' },
+  estadoLabel: { color: '#6b7280' },
+  estadoVerificado: { color: '#16a34a' },
+  estadoRechazado: { color: '#dc2626' },
+  estadoPendiente: { color: '#d97706' },
   botonLogout: { backgroundColor: '#b91c1c', padding: 16, borderRadius: 12, alignItems: 'center' },
   botonLogoutTexto: { color: '#fff', fontWeight: '700', fontSize: 16 },
 });

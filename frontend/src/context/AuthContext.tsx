@@ -8,6 +8,7 @@ export function obtenerUsuarioSesion(data: any) {
     mail: data.mail,
     idPerfil: data.idPerfil,
     rol: data.rol,
+    estadoVerificacionIdentidad: data.estadoVerificacionIdentidad,
   };
 }
 

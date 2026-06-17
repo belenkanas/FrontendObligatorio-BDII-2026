@@ -56,7 +56,7 @@ export default function MisEntradasScreen() {
           try {
             const transfRes = await api.get(`/transferencias-entrada/historial/${usuario.idPerfil}`);
             const transfs = Array.isArray(transfRes.data) ? transfRes.data : [];
-            const transf = transfs.find((t: any) => t.id.idEntrada === entrada.id && t.estado === 'aceptado');
+            const transf = transfs.find((t: any) => t.id.idEntrada === entrada.id && t.estado === 'aceptada');
             if (transf) {
               const perfilRes = await api.get(`/perfiles/${transf.idGeneralRealiza}`);
               mailOrigen = perfilRes.data?.usuario?.mail;
@@ -98,10 +98,10 @@ export default function MisEntradasScreen() {
   });
 
   const contarEstados = (entradas: Entrada[]) => ({
-    activas: entradas.filter(e => e.estado === 'activo').length,
+    activas: entradas.filter(e => e.estado === 'activa').length,
     enTransferencia: entradas.filter(e => e.estado === 'en_transferencia').length,
-    transferidas: entradas.filter(e => e.estado === 'transferido').length,
-    consumidas: entradas.filter(e => e.estado === 'consumido').length,
+    transferidas: entradas.filter(e => e.estado === 'transferida').length,
+    consumidas: entradas.filter(e => e.estado === 'consumida').length,
     noConsumidas: entradas.filter(e => e.estado === 'no_consumida').length,
   });
 
@@ -111,7 +111,7 @@ export default function MisEntradasScreen() {
   const ahora = new Date();
   const esActiva = (venta: Venta) =>
     venta.entradas.some(e => 
-      ['activo', 'en_transferencia'].includes(e.estado) && 
+      ['activa', 'en_transferencia'].includes(e.estado) && 
       new Date(e.fechaHoraPartido) > ahora
     );
 

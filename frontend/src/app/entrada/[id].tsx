@@ -71,7 +71,7 @@ export default function EntradaQRScreen() {
         </View>
       ) : null}
 
-      <TouchableOpacity style={styles.botonVolver} onPress={() => router.push(`/venta/${idVenta}` as any)}>
+      <TouchableOpacity style={styles.botonVolver} onPress={() => router.push(`/venta/${idVenta}`)}>
         <Text style={styles.botonVolverTexto}>Cerrar</Text>
       </TouchableOpacity>
     </View>
