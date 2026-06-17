@@ -25,15 +25,23 @@ type SectorEvento = {
     };
 };
 type Dispositivo = { id?: number; nroLegajo: string };
+type Validacion = {
+    id: {
+        nroLegajoFuncionario: string;
+        idDispositivoEscaneo: number;
+    };
+};
 
 export default function AdminGestionFuncionariosScreen() {
     const [subtab, setSubtab] = useState<SubTab>('funcionarios');
     const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
     const [sectoresEvento, setSectoresEvento] = useState<SectorEvento[]>([]);
     const [dispositivos, setDispositivos] = useState<Dispositivo[]>([]);
+    const [validaciones, setValidaciones] = useState<Validacion[]>([]);
     const [funcionarioSector, setFuncionarioSector] = useState('');
     const [sectorSeleccionado, setSectorSeleccionado] = useState('');
     const [funcionarioDispositivo, setFuncionarioDispositivo] = useState('');
+    const [dispositivoSeleccionado, setDispositivoSeleccionado] = useState('');
     const [loading, setLoading] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
 
@@ -49,15 +57,17 @@ export default function AdminGestionFuncionariosScreen() {
     const cargarDatos = async () => {
         setLoading(true);
         try {
-            const [funcionariosRes, sectoresRes, dispositivosRes] = await Promise.all([
+            const [funcionariosRes, sectoresRes, dispositivosRes, validacionesRes] = await Promise.all([
                 api.get('/funcionarios'),
                 api.get('/sector-eventos'),
                 api.get('/dispositivos'),
+                api.get('/validaciones'),
             ]);
 
             setFuncionarios(Array.isArray(funcionariosRes.data) ? funcionariosRes.data : []);
             setSectoresEvento(Array.isArray(sectoresRes.data) ? sectoresRes.data : []);
             setDispositivos(Array.isArray(dispositivosRes.data) ? dispositivosRes.data : []);
+            setValidaciones(Array.isArray(validacionesRes.data) ? validacionesRes.data : []);
         } catch {
             Alert.alert('Error', 'No se pudieron cargar los datos necesarios.');
         } finally {
@@ -102,25 +112,31 @@ export default function AdminGestionFuncionariosScreen() {
     };
 
     const asignarDispositivo = async () => {
-        if (!funcionarioDispositivo) {
-            Alert.alert('Falta información', 'Seleccioná un funcionario.');
+        if (!funcionarioDispositivo || !dispositivoSeleccionado) {
+            Alert.alert('Falta información', 'Seleccioná un funcionario y un dispositivo.');
             return;
         }
 
         const funcionario = funcionarios.find((f) => String(f.id) === funcionarioDispositivo);
-        if (!funcionario) {
-            Alert.alert('Error', 'No se pudo resolver el funcionario seleccionado.');
+        const dispositivoId = Number(dispositivoSeleccionado);
+
+        if (!funcionario || !Number.isFinite(dispositivoId)) {
+            Alert.alert('Error', 'No se pudo resolver la selección.');
             return;
         }
 
         setActionLoading(true);
         try {
-            await api.post('/dispositivos', {
-                nroLegajo: funcionario.nroLegajo,
+            await api.post('/validaciones', {
+                id: {
+                    nroLegajoFuncionario: funcionario.nroLegajo,
+                    idDispositivoEscaneo: dispositivoId,
+                },
             });
 
             Alert.alert('Éxito', 'Dispositivo asignado correctamente.');
             setFuncionarioDispositivo('');
+            setDispositivoSeleccionado('');
             await cargarDatos();
         } catch (err: any) {
             Alert.alert('Error', obtenerMensajeError(err, 'No se pudo asignar el dispositivo.'));
@@ -133,8 +149,13 @@ export default function AdminGestionFuncionariosScreen() {
         cargarDatos();
     }, []);
 
-    const dispositivosPorLegajo = (legajo: string) =>
-        dispositivos.find((d) => d.nroLegajo === legajo);
+    const dispositivosPorLegajo = (legajo: string) => {
+        const idsAsignados = validaciones
+            .filter((v) => v.id?.nroLegajoFuncionario === legajo)
+            .map((v) => v.id?.idDispositivoEscaneo);
+
+        return dispositivos.filter((d) => typeof d.id === 'number' && idsAsignados.includes(d.id));
+    };
 
     const subtabs: { key: SubTab; label: string }[] = [
         { key: 'funcionarios', label: 'Funcionarios' },
@@ -164,14 +185,20 @@ export default function AdminGestionFuncionariosScreen() {
                     scrollEnabled={false}
                     ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
                     renderItem={({ item }) => {
-                        const dispositivo = dispositivosPorLegajo(item.nroLegajo);
+                        const dispositivosAsignados = dispositivosPorLegajo(item.nroLegajo);
                         return (
                             <View style={s.cardFuncionario}>
                                 <Text style={s.cardTitulo}>Legajo: {item.nroLegajo}</Text>
                                 {item.mail ? <Text style={s.detalle}>{item.mail}</Text> : null}
-                                <Text style={s.detalle}>
-                                    Dispositivo: {dispositivo ? `Asignado a ${dispositivo.nroLegajo}` : 'Sin asignar'}
-                                </Text>
+                                {dispositivosAsignados.length === 0 ? (
+                                    <Text style={s.detalle}>Dispositivo: Sin asignar</Text>
+                                ) : (
+                                    dispositivosAsignados.map((d) => (
+                                        <Text key={`asig-${item.id}-${d.id}`} style={s.detalle}>
+                                            Dispositivo asignado: #{d.id}
+                                        </Text>
+                                    ))
+                                )}
                             </View>
                         );
                     }}
@@ -243,6 +270,22 @@ export default function AdminGestionFuncionariosScreen() {
                             value={String(funcionario.id)}
                         />
                     ))}
+                </Picker>
+            </View>
+
+            <Text style={s.label}>Dispositivo</Text>
+            <View style={s.pickerContainer}>
+                <Picker selectedValue={dispositivoSeleccionado} onValueChange={(v) => setDispositivoSeleccionado(String(v))}>
+                    <Picker.Item label="Seleccioná un dispositivo" value="" />
+                    {dispositivos
+                        .filter((d) => typeof d.id === 'number')
+                        .map((dispositivo) => (
+                            <Picker.Item
+                                key={`dev-${dispositivo.id}`}
+                                label={`ID #${dispositivo.id}${dispositivo.nroLegajo ? ` (legajo base: ${dispositivo.nroLegajo})` : ''}`}
+                                value={String(dispositivo.id)}
+                            />
+                        ))}
                 </Picker>
             </View>
 
