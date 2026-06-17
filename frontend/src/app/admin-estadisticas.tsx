@@ -12,12 +12,12 @@ import {
 } from 'react-native';
 
 
-type SubTab = 'eventos' | 'funcionarios' | 'transacciones' | 'ranking';
+type SubTab = 'eventos' | 'funcionarios' | 'transacciones' | 'ranking' |  'mailUsuarios';
 
 type EntradasPorEvento  = { evento: string; totalEntradas: number };
 type EscaneoFuncionario = { nroLegajo: string; totalEscaneos: number };
-type Transaccion        = { idVenta: number; fechaHora: string; costoFinal: number; comision: number; estado: string; idGeneral: number };
-type Comprador          = { idGeneral: number; totalEntradas: number };
+type Transaccion        = { idVenta: number; fechaHora: string; costoFinal: number; comision: number; estado: string; idGeneral: number, mail?: string };
+type Comprador          = { idGeneral: number; totalEntradas: number; mail?: string };
 
 
 export default function AdminEstadisticasScreen() {
@@ -30,6 +30,7 @@ export default function AdminEstadisticasScreen() {
     funcionarios:  '/estadisticas/escaneos-por-funcionario',
     transacciones: '/estadisticas/transacciones',
     ranking:       '/estadisticas/ranking-compradores',
+    mailUsuarios:  '/perfiles',
   };
 
   const cargar = async (tab: SubTab) => {
@@ -37,7 +38,23 @@ export default function AdminEstadisticasScreen() {
     setDatos([]);
     try {
       const res = await api.get(endpoints[tab]);
-      setDatos(res.data);
+      // Si es ranking o transacciones, enriquecemos con el mail del usuario
+      if ((tab === 'ranking' || tab === 'transacciones') && Array.isArray(res.data)) {
+        const enriched = await Promise.all(
+          res.data.map(async (d: any) => {
+            try {
+              const perfilRes = await api.get(`/perfiles/${d.idGeneral}`);
+              const mail = perfilRes.data?.usuario?.mail ?? perfilRes.data?.mail ?? perfilRes.data?.email ?? perfilRes.data?.correo ?? (tab === 'ranking' ? `Usuario #${d.idGeneral}` : undefined);
+              return { ...d, mail };
+            } catch {
+              return d;
+            }
+          })
+        );
+        setDatos(enriched);
+      } else {
+        setDatos(res.data);
+      }
     } catch {
       Alert.alert('Error', 'No se pudieron cargar las estadísticas.');
     } finally {
@@ -51,7 +68,7 @@ export default function AdminEstadisticasScreen() {
     { key: 'eventos',       label: 'Por Evento'     },
     { key: 'funcionarios',  label: 'Funcionarios'   },
     { key: 'transacciones', label: 'Transacciones'  },
-    { key: 'ranking',       label: 'Ranking'        },
+    { key: 'ranking',       label: 'Ranking'        }
   ];
 
   return (
@@ -117,8 +134,8 @@ export default function AdminEstadisticasScreen() {
               return (
                 <View style={s.card}>
                   <Text style={s.cardTitulo}>Venta #{d.idVenta}</Text>
-                  <Text style={s.detalle}>👤 Usuario: {d.idGeneral}</Text>
-                  <Text style={s.detalle}>🗓 {d.fechaHora?.replace('T', ' ')}</Text>
+                  <Text style={s.detalle}>👤 Usuario: {d.mail ?? d.idGeneral}</Text>
+                  <Text style={s.detalle}> 🗓 Hora de la compra: {d.fechaHora?.replace('T', ' ')}</Text>
                   <Text style={s.detalle}>💰 Total: ${d.costoFinal}</Text>
                   {d.comision > 0 && (
                     <Text style={s.detalle}>📊 Comisión: ${d.comision}</Text>
@@ -126,10 +143,10 @@ export default function AdminEstadisticasScreen() {
                   <Text
                     style={[
                       s.badge,
-                      { backgroundColor: d.estado === 'confirmado' ? '#dcfce7' : '#fef9c3' },
+                      { backgroundColor: d.estado === 'confirmada' ? '#dcfce7' : '#fef9c3' },
                     ]}
                   >
-                    {d.estado}
+                    {d.estado === 'confirmada' ? 'Confirmada' : 'Pendiente'}
                   </Text>
                 </View>
               );
@@ -142,7 +159,7 @@ export default function AdminEstadisticasScreen() {
               return (
                 <View style={s.card}>
                   <Text style={s.cardTitulo}>
-                    {medalla} Usuario {d.idGeneral}
+                    {medalla} Usuario {d.mail ?? d.idGeneral}
                   </Text>
                   <Text style={s.stat}>🎫 Entradas compradas: {d.totalEntradas}</Text>
                 </View>

@@ -28,6 +28,7 @@ export default function SolicitudesScreen() {
   const obtenerMail = async (idGeneral: number): Promise<string> => {
     try {
       const response = await api.get(`/perfiles/${idGeneral}`);
+      //console.log (`Usuario #${idGeneral}`)
       return response.data?.usuario?.mail ?? `Usuario #${idGeneral}`;
     } catch {
       return `Usuario #${idGeneral}`;
