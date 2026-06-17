@@ -18,15 +18,74 @@ type Usuario = {
   rol: string;
 };
 
+type Administrador = {
+  mail: string;
+  password: string;
+  paisSede: string;
+};
+
+const obtenerMensajeError = (err: any, fallback: string) => {
+  const data = err?.response?.data;
+
+  if (!data) return fallback;
+  if (typeof data === 'string') return data;
+  if (typeof data?.message === 'string') return data.message;
+  if (typeof data?.error === 'string') return data.error;
+
+  return fallback;
+};
+
 
 export default function AdminUsuariosScreen() {
   const [mail, setMail]       = useState('');
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [nuevoRol, setNuevoRol] = useState('');
   const [paisSede, setPaisSede] = useState('');
+  const [adminMail, setAdminMail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminPaisSede, setAdminPaisSede] = useState('');
+  const [creandoAdmin, setCreandoAdmin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
   const [exito, setExito]     = useState('');
+
+  const crearAdministrador = async (administrador: Administrador) => {
+    setError('');
+    setExito('');
+    setCreandoAdmin(true);
+    try {
+      await api.post('/administradores', administrador);
+      setExito('Administrador creado correctamente');
+      setAdminMail('');
+      setAdminPassword('');
+      setAdminPaisSede('');
+    } catch (err: any) {
+      setError(obtenerMensajeError(err, 'Error al crear el administrador'));
+    } finally {
+      setCreandoAdmin(false);
+    }
+  };
+
+  const handleCrearAdministrador = async () => {
+    if (!adminMail.trim()) {
+      setError('Ingresá el mail del administrador');
+      return;
+    }
+    if (!adminPassword.trim()) {
+      setError('Ingresá la contraseña del administrador');
+      return;
+    }
+    if (!adminPaisSede.trim()) {
+      setError('Ingresá el país sede');
+      return;
+    }
+
+    await crearAdministrador({
+      mail: adminMail.trim(),
+      password: adminPassword,
+      paisSede: adminPaisSede.trim(),
+    });
+  };
 
   //Buscar usuario por mail
   const buscarUsuario = async () => {
@@ -45,7 +104,7 @@ export default function AdminUsuariosScreen() {
       const perfiles  = Array.isArray(perfilRes.data) ? perfilRes.data : [];
 
       if (perfiles.length === 0) {
-        setError('No existe un usuario registrado con ese correo electrónico');;
+        setError('No existe un usuario registrado con ese correo electrónico');
         return;
       }
 
@@ -105,7 +164,7 @@ export default function AdminUsuariosScreen() {
       setExito('Rol cambiado correctamente');
       setUsuario({ ...usuario!, rol: nuevoRol });
     } catch (err: any) {
-      setError(err.response?.data || 'Error al cambiar el rol');
+      setError(obtenerMensajeError(err, 'Error al cambiar el rol'));
     }
   };
 
@@ -125,7 +184,7 @@ export default function AdminUsuariosScreen() {
               setUsuario(null);
               setMail('');
             } catch (err: any) {
-              setError(err.response?.data || 'Error al eliminar el usuario');
+              setError(obtenerMensajeError(err, 'Error al eliminar el usuario'));
             }
           } 
         }
@@ -143,6 +202,44 @@ export default function AdminUsuariosScreen() {
         y modificar su rol dentro del sistema.
         Esta acción solo está disponible para administradores.
       </Text>
+
+      <View style={s.cardSeccion}>
+        <Text style={s.subtitulo}>Crear administrador</Text>
+
+        <TextInput
+          style={s.input}
+          placeholder="Mail del administrador"
+          value={adminMail}
+          onChangeText={setAdminMail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+
+        <TextInput
+          style={s.input}
+          placeholder="Contraseña"
+          value={adminPassword}
+          onChangeText={setAdminPassword}
+          secureTextEntry
+        />
+
+        <View style={s.pickerContainer}>
+          <Picker selectedValue={adminPaisSede} onValueChange={(v) => setAdminPaisSede(v)}>
+            <Picker.Item label="Seleccioná un país sede" value="" />
+            <Picker.Item label="México" value="México" />
+            <Picker.Item label="Canadá" value="Canadá" />
+            <Picker.Item label="Estados Unidos" value="Estados Unidos" />
+          </Picker>
+        </View>
+
+        <TouchableOpacity
+          style={s.botonCrearAdmin}
+          onPress={handleCrearAdministrador}
+          disabled={creandoAdmin}
+        >
+          <Text style={s.botonTexto}>{creandoAdmin ? 'Creando...' : 'Crear administrador'}</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Buscador */}
       <View style={s.busqueda}>
@@ -214,6 +311,9 @@ const s = StyleSheet.create({
   contenedor: { padding: 24 },
   titulo:     { fontSize: 24, fontWeight: 'bold', color: '#111827', marginBottom: 16 },
   descripcion: { fontSize: 14, color: '#6b7280', marginBottom: 16, lineHeight: 20},
+  cardSeccion: { backgroundColor: '#fff', borderRadius: 16, padding: 16, elevation: 2, marginBottom: 16 },
+  subtitulo:   { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 6 },
+  descripcionSeccion: { fontSize: 13, color: '#6b7280', marginBottom: 12, lineHeight: 18 },
   busqueda:   { flexDirection: 'row', gap: 8, marginBottom: 12 },
   input:      { flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, fontSize: 16, backgroundColor: '#fff' },
   botonBuscar:{ backgroundColor: '#1a73e8', padding: 12, borderRadius: 8, justifyContent: 'center' },
@@ -230,6 +330,7 @@ const s = StyleSheet.create({
   label:          { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 4, marginTop: 12 },
   pickerContainer:{ borderWidth: 1, borderColor: '#ddd', borderRadius: 8, marginBottom: 8 },
 
+  botonCrearAdmin: { backgroundColor: '#1a73e8', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   botonCambiar: { backgroundColor: '#15803d', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 16 },
   botonEliminar: { backgroundColor: '#b91c1c', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 16 },
 });

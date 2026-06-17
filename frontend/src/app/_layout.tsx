@@ -32,6 +32,7 @@ function CustomDrawer(props: any) {
           <DrawerItem label="Usuarios" onPress={() => router.push('/admin-usuarios')} />
           <DrawerItem label="Estadísticas" onPress={() => router.push('/admin-estadisticas')} />
           <DrawerItem label="Gestión de funcionarios" onPress={() => router.push('/admin-gestion-funcionarios')} />
+          <DrawerItem label="Gestión de eventos" onPress={() => router.push('/admin-gestion-eventos')} />
         </>
       )}
 
@@ -70,6 +71,7 @@ export default function RootLayout() {
           <Drawer.Screen name="venta/[idVenta]" options={{ title: 'Detalle de compra', drawerItemStyle: { display: 'none' } }} />
           <Drawer.Screen name="entrada/[id]" options={{ title: 'Mi QR', drawerItemStyle: { display: 'none' } }} />
           <Drawer.Screen name="admin-gestion-funcionarios" options={{ title: 'Gestión de funcionarios' }} />
+          <Drawer.Screen name="admin-gestion-eventos" options={{ title: 'Gestión de eventos' }} />
         </Drawer>
       </AuthProvider>
     </GestureHandlerRootView>
