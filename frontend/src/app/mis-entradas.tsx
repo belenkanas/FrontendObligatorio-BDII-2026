@@ -111,7 +111,7 @@ export default function MisEntradasScreen() {
   const ahora = new Date();
   const esActiva = (venta: Venta) =>
     venta.entradas.some(e => 
-      ['activo', 'en_transferencia'].includes(e.estado) && 
+      ['activa', 'en_transferencia'].includes(e.estado) && 
       new Date(e.fechaHoraPartido) > ahora
     );
 
