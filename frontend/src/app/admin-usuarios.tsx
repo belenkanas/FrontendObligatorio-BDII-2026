@@ -1,7 +1,7 @@
 import api from '../../services/api';
 import { useState } from 'react';
 import {
-  Alert,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -48,6 +48,7 @@ export default function AdminUsuariosScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
   const [exito, setExito]     = useState('');
+  const [mostrarModalEliminar, setMostrarModalEliminar] = useState(false);
 
   const crearAdministrador = async (administrador: Administrador) => {
     setError('');
@@ -168,32 +169,105 @@ export default function AdminUsuariosScreen() {
     }
   };
 
-  const eliminarUsuario = async () => {
-    Alert.alert(
-      'Confirmar eliminación',  
-      '¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.delete(`/perfiles/${usuario?.mail}`);
-              setExito('Usuario eliminado correctamente');
-              setUsuario(null);
-              setMail('');
-            } catch (err: any) {
-              setError(obtenerMensajeError(err, 'Error al eliminar el usuario'));
-            }
-          } 
-        }
-      ]
-    );
+  const eliminarUsuario = () => {
+    if (!usuario) return;
+
+    setMostrarModalEliminar(true);
   };
 
+  const confirmarEliminarUsuario = async () => {
+    try {
+      let endpoint = '';
+
+      switch (usuario?.rol) {
+
+        case 'ADMINISTRADOR':
+          endpoint = `/administradores/${usuario.idPerfil}`;
+          break;
+
+        case 'FUNCIONARIO':
+          endpoint = `/funcionarios/${usuario.idPerfil}`;
+          break;
+
+        case 'GENERAL':
+          endpoint = `/generales/${usuario.idPerfil}`;
+          break;
+
+        default:
+          setError('Rol de usuario inválido');
+          return;
+      }
+
+
+      await api.delete(endpoint);
+
+      setExito('Usuario eliminado correctamente');
+      setUsuario(null);
+      setMail('');
+
+    } catch (err: any) {
+
+      setError(
+        obtenerMensajeError(err, 'Error al eliminar el usuario')
+      );
+
+    } finally {
+
+      setMostrarModalEliminar(false);
+
+    }
+  };
  
   return (
+    <>
+    <Modal
+      visible={mostrarModalEliminar}
+      transparent
+      animationType="fade"
+    >
+      <View style={s.modalFondo}>
+
+        <View style={s.modalCaja}>
+
+          <Text style={s.modalTitulo}>
+            Confirmar eliminación
+          </Text>
+
+
+          <Text style={s.modalTexto}>
+            ¿Estás seguro de que deseas eliminar este usuario?
+            Esta acción no se puede deshacer.
+          </Text>
+
+
+          <View style={s.modalBotones}>
+
+            <TouchableOpacity
+              style={s.botonCancelar}
+              onPress={() => setMostrarModalEliminar(false)}
+            >
+              <Text style={s.botonTexto}>
+                Cancelar
+              </Text>
+            </TouchableOpacity>
+
+
+            <TouchableOpacity
+              style={s.botonConfirmarEliminar}
+              onPress={confirmarEliminarUsuario}
+            >
+              <Text style={s.botonTexto}>
+                Eliminar
+              </Text>
+            </TouchableOpacity>
+
+          </View>
+
+        </View>
+
+      </View>
+    </Modal>
+
     <ScrollView style={s.root} contentContainerStyle={s.contenedor}>
       <Text style={s.titulo}>Gestión de usuarios</Text>
 
@@ -287,7 +361,7 @@ export default function AdminUsuariosScreen() {
               <Text style={s.label}>País sede</Text>
               <View style={s.pickerContainer}>
                 <Picker selectedValue={paisSede} onValueChange={(v) => setPaisSede(v)}>
-                  <Picker.Item label="Seleccioná un país sede" value=""               />
+                  <Picker.Item label="Seleccioná un país sede para este nuevo administrador" value=""               />
                   <Picker.Item label="México"                  value="México"         />
                   <Picker.Item label="Canadá"                  value="Canadá"         />
                   <Picker.Item label="Estados Unidos"          value="Estados Unidos" />
@@ -302,6 +376,7 @@ export default function AdminUsuariosScreen() {
         </View>
       )}
     </ScrollView>
+    </>
   );
 }
 
@@ -333,4 +408,48 @@ const s = StyleSheet.create({
   botonCrearAdmin: { backgroundColor: '#1a73e8', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   botonCambiar: { backgroundColor: '#15803d', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 16 },
   botonEliminar: { backgroundColor: '#b91c1c', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 16 },
+  modalFondo: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCaja: {
+    width: '85%',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+  },
+
+  modalTitulo: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 12,
+    color: '#111827',
+  },
+
+  modalTexto: {
+    fontSize: 15,
+    color: '#374151',
+    marginBottom: 20,
+  },
+
+  modalBotones: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+  },
+
+  botonCancelar: {
+    backgroundColor: '#6b7280',
+    padding: 12,
+    borderRadius: 8,
+  },
+
+  botonConfirmarEliminar: {
+    backgroundColor: '#b91c1c',
+    padding: 12,
+    borderRadius: 8,
+  },
+
 });
