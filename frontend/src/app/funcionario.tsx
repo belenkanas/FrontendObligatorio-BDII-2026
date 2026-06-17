@@ -8,12 +8,17 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 type SectorAsignado = {
     nombreSector: string;
     idDispositivoEscaneo: number;
+    vendidas: number;
+    escaneadas: number;
 };
 
 type EventoFuncionario = {
     id: string;
     nombre: string;
     estadio?: string;
+    estadioDireccionPais?: string;
+    estadioDireccionCiudad?: string;
+    fechaHoraPartido?: string;
     ubicacion?: string;
     fechaEtiqueta: string;
     esFuturo: boolean;
@@ -48,33 +53,86 @@ function formatearFecha(fecha: Date | null) {
     });
 }
 
-function normalizarAsignaciones(data: any[]): EventoFuncionario[] {
-    if (!Array.isArray(data)) return [];
+// Normaliza una fecha (string ISO o array de Java) a una clave de comparación estable
+function claveFecha(rawFecha: any): string {
+    const fecha = parseFecha(rawFecha);
+    return fecha ? fecha.toISOString() : String(rawFecha);
+}
 
-    return data.map((item, index) => {
+async function cargarAsignacionesFuncionario(idPerfil: number): Promise<EventoFuncionario[]> {
+    const [asignacionesRes, entradasRes, escaneosRes] = await Promise.all([
+        api.get(`/funcionarios/${idPerfil}/asignaciones`),
+        api.get('/entradas'),
+        api.get('/tokens-escaneados'),
+    ]);
+
+    const asignacionesData = Array.isArray(asignacionesRes.data) ? asignacionesRes.data : [];
+    const entradas = Array.isArray(entradasRes.data) ? entradasRes.data : [];
+    const escaneos = Array.isArray(escaneosRes.data) ? escaneosRes.data : [];
+
+    // Contar entradas vendidas por sector+evento (clave: sector|estadio|pais|ciudad|fecha)
+    const vendidasPorSector: Record<string, number> = {};
+    entradas.forEach((en: any) => {
+        const key = [
+            en.nombreSector,
+            en.estadioNombre,
+            en.estadioDireccionPais,
+            en.estadioDireccionCiudad,
+            claveFecha(en.fechaHoraPartido),
+        ].join('|');
+        vendidasPorSector[key] = (vendidasPorSector[key] ?? 0) + 1;
+    });
+
+    // Contar escaneos válidos por dispositivo (clave: idDispositivoEscaneo)
+    const escaneadasPorDispositivo: Record<string, number> = {};
+    escaneos.forEach((esc: any) => {
+        const idDispositivo = esc?.id?.idDispositivoEscaneo;
+        if (idDispositivo === undefined || idDispositivo === null) return;
+        const key = String(idDispositivo);
+        escaneadasPorDispositivo[key] = (escaneadasPorDispositivo[key] ?? 0) + 1;
+    });
+
+    return asignacionesData.map((item: any, index: number) => {
         const evento = item?.evento ?? {};
         const eventoId = evento?.id ?? {};
         const fecha = parseFecha(eventoId?.fechaHoraPartido);
         const estadio = eventoId?.estadioNombre;
-        const ubicacion = eventoId?.estadioDireccionCiudad;
+        const estadioPais = eventoId?.estadioDireccionPais;
+        const estadioCiudad = eventoId?.estadioDireccionCiudad;
         const local = eventoId?.nombrePaisEquipoLocal ?? '';
         const visitante = eventoId?.nombrePaisEquipoVisitante ?? '';
+
+        const sectoresCrudos: any[] = Array.isArray(item?.sectores) ? item.sectores : [];
+        const sectores: SectorAsignado[] = sectoresCrudos.map((s) => {
+            const keyVendidas = [
+                s.nombreSector,
+                estadio,
+                estadioPais,
+                estadioCiudad,
+                claveFecha(eventoId?.fechaHoraPartido),
+            ].join('|');
+
+            return {
+                nombreSector: s.nombreSector,
+                idDispositivoEscaneo: s.idDispositivoEscaneo,
+                vendidas: vendidasPorSector[keyVendidas] ?? 0,
+                escaneadas: escaneadasPorDispositivo[String(s.idDispositivoEscaneo)] ?? 0,
+            };
+        });
 
         return {
             id: `${estadio}-${eventoId?.fechaHoraPartido}-${index}`,
             nombre: local && visitante ? `${local} vs ${visitante}` : (estadio || 'Evento sin nombre'),
             estadio,
-            ubicacion,
+            estadioDireccionPais: estadioPais,
+            estadioDireccionCiudad: estadioCiudad,
+            fechaHoraPartido: eventoId?.fechaHoraPartido,
+            ubicacion: estadioCiudad,
             fechaEtiqueta: formatearFecha(fecha),
             esFuturo: fecha ? fecha.getTime() >= Date.now() : false,
-            sectores: Array.isArray(item?.sectores) ? item.sectores : [],
+            sectores,
         };
     });
-}
-
-async function cargarAsignacionesFuncionario(idPerfil: number): Promise<EventoFuncionario[]> {
-    const response = await api.get(`/funcionarios/${idPerfil}/asignaciones`);
-    return normalizarAsignaciones(response.data);
 }
 
 export default function FuncionarioScreen() {
@@ -140,6 +198,7 @@ export default function FuncionarioScreen() {
         setEventoSeleccionado(null);
         setSectorSeleccionado(null);
         setProcesando(false);
+        cargarDatos(); // refresca conteos al cerrar el escaneo
     };
 
     const handleQRDetectado = async ({ data }: { data: string }) => {
@@ -241,9 +300,12 @@ export default function FuncionarioScreen() {
                                     style={styles.sectorRow}
                                     onPress={() => abrirEscaneo(evento, sector)}
                                 >
-                                    <View>
+                                    <View style={{ flex: 1 }}>
                                         <Text style={styles.sectorNombre}>{sector.nombreSector}</Text>
                                         <Text style={styles.sectorDispositivo}>Dispositivo #{sector.idDispositivoEscaneo}</Text>
+                                        <Text style={styles.sectorConteo}>
+                                            {sector.escaneadas} / {sector.vendidas} entradas escaneadas
+                                        </Text>
                                     </View>
                                     <Text style={styles.sectorAccion}>Escanear →</Text>
                                 </TouchableOpacity>
@@ -275,8 +337,13 @@ export default function FuncionarioScreen() {
                             <Text style={styles.sectoresTitulo}>Sectores trabajados</Text>
                             {evento.sectores.map((sector) => (
                                 <View key={`${evento.id}-${sector.nombreSector}`} style={styles.sectorRowPasado}>
-                                    <Text style={styles.sectorNombre}>{sector.nombreSector}</Text>
-                                    <Text style={styles.sectorDispositivo}>Dispositivo #{sector.idDispositivoEscaneo}</Text>
+                                    <View>
+                                        <Text style={styles.sectorNombre}>{sector.nombreSector}</Text>
+                                        <Text style={styles.sectorDispositivo}>Dispositivo #{sector.idDispositivoEscaneo}</Text>
+                                    </View>
+                                    <Text style={styles.sectorConteo}>
+                                        {sector.escaneadas} / {sector.vendidas}
+                                    </Text>
                                 </View>
                             ))}
                         </View>
@@ -290,6 +357,11 @@ export default function FuncionarioScreen() {
                         <Text style={styles.modalTitulo}>Escanear entradas</Text>
                         <Text style={styles.modalSubtitulo}>{eventoSeleccionado?.nombre}</Text>
                         <Text style={styles.modalSubtitulo}>Sector: {sectorSeleccionado?.nombreSector}</Text>
+                        {sectorSeleccionado ? (
+                            <Text style={styles.modalConteo}>
+                                {sectorSeleccionado.escaneadas} / {sectorSeleccionado.vendidas} escaneadas
+                            </Text>
+                        ) : null}
                     </View>
 
                     {permiso?.granted ? (
@@ -451,6 +523,12 @@ const styles = StyleSheet.create({
         color: '#64748b',
         marginTop: 2,
     },
+    sectorConteo: {
+        fontSize: 12,
+        color: '#1a73e8',
+        fontWeight: '700',
+        marginTop: 4,
+    },
     sectorAccion: {
         color: '#1a73e8',
         fontWeight: '800',
@@ -506,6 +584,12 @@ const styles = StyleSheet.create({
         color: '#cbd5e1',
         fontSize: 14,
         marginTop: 4,
+    },
+    modalConteo: {
+        color: '#93c5fd',
+        fontSize: 13,
+        fontWeight: '700',
+        marginTop: 8,
     },
     camera: {
         flex: 1,
