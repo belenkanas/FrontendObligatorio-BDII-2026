@@ -109,6 +109,30 @@ export default function AdminUsuariosScreen() {
     }
   };
 
+  const eliminarUsuario = async () => {
+    Alert.alert(
+      'Confirmar eliminación',  
+      '¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/perfiles/${usuario?.mail}`);
+              setExito('Usuario eliminado correctamente');
+              setUsuario(null);
+              setMail('');
+            } catch (err: any) {
+              setError(err.response?.data || 'Error al eliminar el usuario');
+            }
+          } 
+        }
+      ]
+    );
+  };
+
  
   return (
     <ScrollView style={s.root} contentContainerStyle={s.contenedor}>
@@ -154,6 +178,11 @@ export default function AdminUsuariosScreen() {
               <Picker.Item label="FUNCIONARIO"    value="FUNCIONARIO"    />
             </Picker>
           </View>
+
+          {/* Botón para eliminar usuario */}
+          <TouchableOpacity style={s.botonEliminar} onPress={eliminarUsuario}>
+            <Text style={s.botonTexto}>Eliminar usuario</Text>
+          </TouchableOpacity>
 
           {/* País sede — solo si el nuevo rol es ADMINISTRADOR */}
           {nuevoRol === 'ADMINISTRADOR' && (
@@ -202,4 +231,5 @@ const s = StyleSheet.create({
   pickerContainer:{ borderWidth: 1, borderColor: '#ddd', borderRadius: 8, marginBottom: 8 },
 
   botonCambiar: { backgroundColor: '#15803d', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 16 },
+  botonEliminar: { backgroundColor: '#b91c1c', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 16 },
 });
