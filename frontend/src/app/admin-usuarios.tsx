@@ -105,7 +105,11 @@ export default function AdminUsuariosScreen() {
       setExito('Rol cambiado correctamente');
       setUsuario({ ...usuario!, rol: nuevoRol });
     } catch (err: any) {
-      setError(err.response?.data || 'Error al cambiar el rol');
+      const payload = err.response?.data;
+      const message = typeof payload === 'string'
+          ? payload
+          : payload?.message || payload?.error || JSON.stringify(payload) || 'Error al cambiar el rol';
+      setError(message);
     }
   };
 
