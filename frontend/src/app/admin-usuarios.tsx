@@ -173,7 +173,27 @@ export default function AdminUsuariosScreen() {
     }
   };
 
- 
+  const eliminarUsuario = () => {
+    setError('');
+    setExito('');
+    setMostrarModalEliminar(true);
+  }
+
+  const confirmarEliminarUsuario = async () => {
+    try {
+      await api.delete(`/usuarios/${usuario?.idPerfil}`);
+      setExito('Usuario eliminado correctamente');
+      setUsuario(null);
+      setMail('');
+    } catch (err: any) {
+      const payload = err.response?.data;
+      const message = typeof payload === 'string'
+          ? payload
+          : payload?.message || payload?.error || JSON.stringify(payload) || 'Error al eliminar el usuario';
+      setError(message);
+    }
+  };
+
   return (
     <>
     <Modal
