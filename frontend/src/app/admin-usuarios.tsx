@@ -181,7 +181,19 @@ export default function AdminUsuariosScreen() {
 
   const confirmarEliminarUsuario = async () => {
     try {
-      await api.delete(`/usuarios/${usuario?.idPerfil}`);
+      if (!usuario) {
+        setError('No se encontró el usuario a eliminar');
+        return;
+      }
+      if (usuario.rol === 'ADMINISTRADOR') {
+        await api.delete(`/administradores/${usuario.idPerfil}`);
+      }
+      else if (usuario.rol === 'FUNCIONARIO') {
+        await api.delete(`/funcionarios/${usuario.idPerfil}`);
+      }
+      else if (usuario.rol === 'GENERAL') {
+        await api.delete(`/generales/${usuario.idPerfil}`);
+      }
       setExito('Usuario eliminado correctamente');
       setUsuario(null);
       setMail('');
