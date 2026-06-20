@@ -165,58 +165,14 @@ export default function AdminUsuariosScreen() {
       setExito('Rol cambiado correctamente');
       setUsuario({ ...usuario!, rol: nuevoRol });
     } catch (err: any) {
-      setError(obtenerMensajeError(err, 'Error al cambiar el rol'));
+      const payload = err.response?.data;
+      const message = typeof payload === 'string'
+          ? payload
+          : payload?.message || payload?.error || JSON.stringify(payload) || 'Error al cambiar el rol';
+      setError(message);
     }
   };
 
-  const eliminarUsuario = () => {
-    if (!usuario) return;
-
-    setMostrarModalEliminar(true);
-  };
-
-  const confirmarEliminarUsuario = async () => {
-    try {
-      let endpoint = '';
-
-      switch (usuario?.rol) {
-
-        case 'ADMINISTRADOR':
-          endpoint = `/administradores/${usuario.idPerfil}`;
-          break;
-
-        case 'FUNCIONARIO':
-          endpoint = `/funcionarios/${usuario.idPerfil}`;
-          break;
-
-        case 'GENERAL':
-          endpoint = `/generales/${usuario.idPerfil}`;
-          break;
-
-        default:
-          setError('Rol de usuario inválido');
-          return;
-      }
-
-
-      await api.delete(endpoint);
-
-      setExito('Usuario eliminado correctamente');
-      setUsuario(null);
-      setMail('');
-
-    } catch (err: any) {
-
-      setError(
-        obtenerMensajeError(err, 'Error al eliminar el usuario')
-      );
-
-    } finally {
-
-      setMostrarModalEliminar(false);
-
-    }
-  };
  
   return (
     <>
