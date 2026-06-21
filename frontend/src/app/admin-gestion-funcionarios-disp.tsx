@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -24,7 +25,12 @@ type SectorEvento = {
         fechaHoraPartido: string;
     };
 };
-type Dispositivo = { id?: number; nroLegajo: string };
+type Dispositivo = { 
+    id?: number; 
+    nroSerie?: string; 
+    nroLegajo?: string | null 
+};
+
 type Validacion = {
     id: {
         nroLegajoFuncionario: string;
@@ -44,6 +50,8 @@ export default function AdminGestionFuncionariosScreen() {
     const [dispositivoSeleccionado, setDispositivoSeleccionado] = useState('');
     const [loading, setLoading] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
+    const [nuevoNroSerie, setNuevoNroSerie] = useState('');
+    const [dispositivoADesasignar, setDispositivoADesasignar] = useState('');
 
     const obtenerMensajeError = (err: any, fallback: string) => {
         const data = err?.response?.data;
@@ -143,6 +151,70 @@ export default function AdminGestionFuncionariosScreen() {
         } finally {
             setActionLoading(false);
         }
+    };
+
+    const registrarDispositivo = async () => {
+        if (!nuevoNroSerie.trim()) {
+            Alert.alert('Falta información', 'Ingresá el número de serie del dispositivo.');
+            return;
+        }
+
+        setActionLoading(true);
+        try {
+            await api.post('/dispositivos', { nroSerie: nuevoNroSerie.trim() });
+            Alert.alert('Éxito', 'Dispositivo registrado correctamente.');
+            setNuevoNroSerie('');
+            await cargarDatos();
+        } catch (err: any) {
+            Alert.alert('Error', obtenerMensajeError(err, 'No se pudo registrar el dispositivo.'));
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const desasignarDispositivo = async () => {
+        if (!dispositivoADesasignar) {
+            Alert.alert('Falta información', 'Seleccioná un dispositivo para desasignar.');
+            return;
+        }
+
+        setActionLoading(true);
+        try {
+            await api.post(`/dispositivos/${dispositivoADesasignar}/desasignar`);
+            Alert.alert('Éxito', 'Dispositivo desasignado correctamente.');
+            setDispositivoADesasignar('');
+            await cargarDatos();
+        } catch (err: any) {
+            Alert.alert('Error', obtenerMensajeError(err, 'No se pudo desasignar el dispositivo.'));
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const eliminarDispositivo = (id: number) => {
+        Alert.alert(
+            'Confirmar eliminación',
+            '¿Estás segura de que querés eliminar este dispositivo?',
+            [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                    text: 'Eliminar',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setActionLoading(true);
+                        try {
+                            await api.delete(`/dispositivos/${id}`);
+                            Alert.alert('Éxito', 'Dispositivo eliminado correctamente.');
+                            await cargarDatos();
+                        } catch (err: any) {
+                            Alert.alert('Error', obtenerMensajeError(err, 'No se pudo eliminar el dispositivo.'));
+                        } finally {
+                            setActionLoading(false);
+                        }
+                    },
+                },
+            ]
+        );
     };
 
     useEffect(() => {
@@ -300,6 +372,108 @@ export default function AdminGestionFuncionariosScreen() {
         </View>
     );
 
+    const renderGestionDispositivos = () => (
+        <View>
+            {/* Registrar */}
+            <View style={s.cardSeccion}>
+                <Text style={s.subtitulo}>Registrar dispositivo</Text>
+                <Text style={s.descripcionSeccion}>
+                    Ingresá el número de serie del dispositivo físico para darlo de alta en el sistema.
+                </Text>
+                <Text style={s.label}>Número de serie</Text>
+                <TextInput
+                    style={s.input}
+                    placeholder="Ej: SN-ABC123"
+                    value={nuevoNroSerie}
+                    onChangeText={setNuevoNroSerie}
+                    autoCapitalize="characters"
+                />
+                <TouchableOpacity
+                    style={[s.botonPrimario, actionLoading && s.botonDeshabilitado]}
+                    onPress={registrarDispositivo}
+                    disabled={actionLoading}
+                >
+                    <Text style={s.botonTexto}>{actionLoading ? 'Registrando...' : 'Registrar dispositivo'}</Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* Lista */}
+            <View style={s.cardSeccion}>
+                <View style={s.cabeceraLista}>
+                    <Text style={s.subtitulo}>Todos los dispositivos</Text>
+                    <TouchableOpacity onPress={cargarDatos}>
+                        <Text style={s.link}>Actualizar</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {loading ? (
+                    <ActivityIndicator size="large" color="#1a73e8" />
+                ) : dispositivos.length === 0 ? (
+                    <Text style={s.vacio}>No hay dispositivos registrados.</Text>
+                ) : (
+                    <FlatList
+                        data={dispositivos}
+                        keyExtractor={(item) => String(item.id)}
+                        scrollEnabled={false}
+                        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+                        renderItem={({ item }) => (
+                            <View style={s.cardDispositivo}>
+                                <View style={s.cardDispositivoInfo}>
+                                    <Text style={s.cardTitulo}>{item.nroSerie ?? `#${item.id}`}</Text>
+                                    {item.nroLegajo ? (
+                                        <Text style={s.detalle}>Asignado a: {item.nroLegajo}</Text>
+                                    ) : (
+                                        <Text style={[s.detalle, s.libre]}>Sin asignar</Text>
+                                    )}
+                                </View>
+                                <TouchableOpacity
+                                    style={s.botonEliminar}
+                                    onPress={() => eliminarDispositivo(item.id!)}
+                                    disabled={actionLoading}
+                                >
+                                    <Text style={s.botonEliminarTexto}>Eliminar</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    />
+                )}
+            </View>
+
+            {/* Desasignar */}
+            <View style={s.cardSeccion}>
+                <Text style={s.subtitulo}>Desasignar dispositivo</Text>
+                <Text style={s.descripcionSeccion}>
+                    Liberá un dispositivo que está actualmente asignado a un funcionario.
+                </Text>
+                <Text style={s.label}>Dispositivo asignado</Text>
+                <View style={s.pickerContainer}>
+                    <Picker
+                        selectedValue={dispositivoADesasignar}
+                        onValueChange={(v) => setDispositivoADesasignar(String(v))}
+                    >
+                        <Picker.Item label="Seleccioná un dispositivo" value="" />
+                        {dispositivos
+                            .filter((d) => typeof d.id === 'number' && d.nroLegajo)
+                            .map((d) => (
+                                <Picker.Item
+                                    key={`desasig-${d.id}`}
+                                    label={`${d.nroSerie ?? `#${d.id}`} → ${d.nroLegajo}`}
+                                    value={String(d.id)}
+                                />
+                            ))}
+                    </Picker>
+                </View>
+                <TouchableOpacity
+                    style={[s.botonWarning, actionLoading && s.botonDeshabilitado]}
+                    onPress={desasignarDispositivo}
+                    disabled={actionLoading}
+                >
+                    <Text style={s.botonTexto}>{actionLoading ? 'Desasignando...' : 'Desasignar'}</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+
     return (
         <ScrollView style={s.root} contentContainerStyle={s.contenedor}>
             <Text style={s.titulo}>Gestión de Funcionarios y Dispositivos</Text>
@@ -326,6 +500,7 @@ export default function AdminGestionFuncionariosScreen() {
             {subtab === 'funcionarios' && renderFuncionarios()}
             {subtab === 'sectorEvento' && renderAsignarSector()}
             {subtab === 'dispositivo' && renderAsignarDispositivo()}
+            {subtab === 'gestionDispositivos' && renderGestionDispositivos()}
         </ScrollView>
     );
 }
@@ -356,4 +531,41 @@ const s = StyleSheet.create({
     cardFuncionario: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 12, marginTop: 10, backgroundColor: '#fafafa' },
     cardTitulo: { fontSize: 15, fontWeight: '800', color: '#111827', marginBottom: 4 },
     detalle: { fontSize: 13, color: '#6b7280', marginTop: 2 },
+    input: {
+        borderWidth: 1,
+        borderColor: '#d1d5db',
+        borderRadius: 10,
+        padding: 12,
+        fontSize: 14,
+        color: '#111827',
+        backgroundColor: '#fff',
+        marginBottom: 10,
+    },
+    cardDispositivo: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#e5e7eb',
+        borderRadius: 12,
+        padding: 12,
+        backgroundColor: '#fafafa',
+    },
+    cardDispositivoInfo: { flex: 1 },
+    libre: { color: '#10b981', fontWeight: '700' },
+    botonEliminar: {
+        backgroundColor: '#ef4444',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+        marginLeft: 8,
+    },
+    botonEliminarTexto: { color: '#fff', fontWeight: '700', fontSize: 13 },
+    botonWarning: {
+        backgroundColor: '#f59e0b',
+        padding: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+        marginTop: 6,
+    },
 });
