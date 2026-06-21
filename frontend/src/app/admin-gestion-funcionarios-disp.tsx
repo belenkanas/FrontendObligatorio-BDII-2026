@@ -1,0 +1,697 @@
+import api from '../../services/api';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+
+type SubTab = 'funcionarios' | 'sectorEvento' | 'dispositivo' | 'gestionDispositivos';
+
+type Funcionario = { 
+    id_funcionario: number; 
+    nroLegajo: string; 
+    perfil?: { usuario?: { mail?: string } }
+};
+type SectorEvento = {
+    id: {
+        nombreSector: string;
+        estadioNombre: string;
+        estadioDireccionPais: string;
+        estadioDireccionCiudad: string;
+        fechaHoraPartido: string;
+    };
+};
+type Dispositivo = { 
+    id?: number; 
+    nroSerie?: string; 
+    nroLegajo?: string | null 
+};
+
+type Validacion = {
+    id: {
+        nroLegajoFuncionario: string;
+        idDispositivoEscaneo: number;
+    };
+};
+
+export default function AdminGestionFuncionariosScreen() {
+    const [subtab, setSubtab] = useState<SubTab>('funcionarios');
+    const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
+    const [sectoresEvento, setSectoresEvento] = useState<SectorEvento[]>([]);
+    const [dispositivos, setDispositivos] = useState<Dispositivo[]>([]);
+    const [validaciones, setValidaciones] = useState<Validacion[]>([]);
+    const [funcionarioSector, setFuncionarioSector] = useState('');
+    const [sectorSeleccionado, setSectorSeleccionado] = useState('');
+    const [funcionarioDispositivo, setFuncionarioDispositivo] = useState('');
+    const [dispositivoSeleccionado, setDispositivoSeleccionado] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [actionLoading, setActionLoading] = useState(false);
+    const [nuevoNroSerie, setNuevoNroSerie] = useState('');
+    const [dispositivoADesasignar, setDispositivoADesasignar] = useState('');
+    const [modalEliminar, setModalEliminar] = useState(false);
+    const [dispositivoAEliminar, setDispositivoAEliminar] = useState<Dispositivo | null>(null);
+    
+    const [exitoAsignar, setExitoAsignar] = useState('');
+    const [errorAsignar, setErrorAsignar] = useState('');
+    const [exitoRegistrar, setExitoRegistrar] = useState('');
+    const [errorRegistrar, setErrorRegistrar] = useState('');
+    const [exitoDesasignar, setExitoDesasignar] = useState('');
+    const [errorDesasignar, setErrorDesasignar] = useState('');
+    const [exitoEliminar, setExitoEliminar] = useState('');
+    const [errorEliminar, setErrorEliminar] = useState('');
+
+    const obtenerMensajeError = (err: any, fallback: string) => {
+        const data = err?.response?.data;
+        if (!data) return fallback;
+        if (typeof data === 'string') return data;
+        if (typeof data?.message === 'string') return data.message;
+        if (typeof data?.error === 'string') return data.error;
+        return fallback;
+    };
+
+    const cargarDatos = async () => {
+        setLoading(true);
+        try {
+            const [funcionariosRes, sectoresRes, dispositivosRes, validacionesRes] = await Promise.all([
+                api.get('/funcionarios'),
+                api.get('/sector-eventos'),
+                api.get('/dispositivos'),
+                api.get('/validaciones'),
+            ]);
+            console.log('Dispositivos:', JSON.stringify(dispositivos));
+
+            setFuncionarios(Array.isArray(funcionariosRes.data) ? funcionariosRes.data : []);
+            setSectoresEvento(Array.isArray(sectoresRes.data) ? sectoresRes.data : []);
+            setDispositivos(Array.isArray(dispositivosRes.data) ? dispositivosRes.data : []);
+            setValidaciones(Array.isArray(validacionesRes.data) ? validacionesRes.data : []);
+        
+        } catch {
+            Alert.alert('Error', 'No se pudieron cargar los datos necesarios.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const asignarSector = async () => {
+        if (!funcionarioSector || !sectorSeleccionado) {
+            Alert.alert('Falta información', 'Seleccioná un funcionario y un sector de evento.');
+            return;
+        }
+
+        const funcionario = funcionarios.find((f) => String(f.id_funcionario) === funcionarioSector);
+        const sector = sectoresEvento.find((s) => JSON.stringify(s.id) === sectorSeleccionado);
+
+        if (!funcionario || !sector) {
+            Alert.alert('Error', 'No se pudo resolver la selección.');
+            return;
+        }
+
+        setActionLoading(true);
+        try {
+            await api.post('/funcionarios-asignados-sector', {
+                id: {
+                    nroLegajo: funcionario.nroLegajo,
+                    nombreSector: sector.id.nombreSector,
+                    estadioNombre: sector.id.estadioNombre,
+                    estadioDireccionPais: sector.id.estadioDireccionPais,
+                    estadioDireccionCiudad: sector.id.estadioDireccionCiudad,
+                },
+            });
+
+            Alert.alert('Éxito', 'Sector asignado correctamente.');
+            setSectorSeleccionado('');
+            await cargarDatos();
+        } catch (err: any) {
+            Alert.alert('Error', obtenerMensajeError(err, 'No se pudo asignar el sector.'));
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const asignarDispositivo = async () => {
+        setExitoAsignar(''); setErrorAsignar('');
+        if (!funcionarioDispositivo || !dispositivoSeleccionado) {
+            setErrorAsignar('Seleccioná un funcionario y un dispositivo.');
+            return;
+        }
+        const funcionario = funcionarios.find((f) => String(f.id_funcionario) === funcionarioDispositivo);
+        const dispositivoId = Number(dispositivoSeleccionado);
+        if (!funcionario || !Number.isFinite(dispositivoId)) {
+            setErrorAsignar('No se pudo resolver la selección.');
+            return;
+        }
+        setActionLoading(true);
+        try {
+            await api.post(`/dispositivos/${dispositivoId}/asignar`, { nroLegajo: funcionario.nroLegajo });
+            setExitoAsignar('Dispositivo asignado correctamente.');
+            setFuncionarioDispositivo('');
+            setDispositivoSeleccionado('');
+            await cargarDatos();
+        } catch (err: any) {
+            setErrorAsignar(obtenerMensajeError(err, 'No se pudo asignar el dispositivo.'));
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const registrarDispositivo = async () => {
+        setExitoRegistrar(''); setErrorRegistrar('');
+        if (!nuevoNroSerie.trim()) {
+            setErrorRegistrar('Ingresá el número de serie del dispositivo.');
+            return;
+        }
+        setActionLoading(true);
+        try {
+            await api.post('/dispositivos', { nroSerie: nuevoNroSerie.trim() });
+            setExitoRegistrar('Dispositivo registrado correctamente.');
+            setNuevoNroSerie('');
+            await cargarDatos();
+        } catch (err: any) {
+            setErrorRegistrar(obtenerMensajeError(err, 'No se pudo registrar el dispositivo.'));
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const desasignarDispositivo = async () => {
+        setExitoDesasignar(''); setErrorDesasignar('');
+        if (!dispositivoADesasignar) {
+            setErrorDesasignar('Seleccioná un dispositivo para desasignar.');
+            return;
+        }
+        setActionLoading(true);
+        try {
+            await api.post(`/dispositivos/${dispositivoADesasignar}/desasignar`);
+            setExitoDesasignar('Dispositivo desasignado correctamente.');
+            setDispositivoADesasignar('');
+            await cargarDatos();
+        } catch (err: any) {
+            setErrorDesasignar(obtenerMensajeError(err, 'No se pudo desasignar el dispositivo.'));
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const eliminarDispositivo = (dispositivo: Dispositivo) => {
+        setDispositivoAEliminar(dispositivo);
+        setModalEliminar(true);
+    };
+
+    const confirmarEliminar = async () => {
+        if (dispositivoAEliminar === null) return;
+        setActionLoading(true);
+        try {
+            await api.delete(`/dispositivos/${dispositivoAEliminar.id}`);
+            setModalEliminar(false);
+            setDispositivoAEliminar(null);
+            setExitoEliminar('Dispositivo eliminado correctamente.');
+            await cargarDatos();
+        } catch (err: any) {
+            setModalEliminar(false);
+            setErrorEliminar(obtenerMensajeError(err, 'No se pudo eliminar el dispositivo.'));
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        cargarDatos();
+    }, []);
+
+    const dispositivosPorLegajo = (legajo: string) => {
+        return dispositivos.filter((d) => d.nroLegajo === legajo);
+    };
+
+    const subtabs: { key: SubTab; label: string }[] = [
+        { key: 'funcionarios', label: 'Funcionarios' },
+        { key: 'sectorEvento', label: 'Asignar Sector-Evento' },
+        { key: 'dispositivo', label: 'Asignar Dispositivo' },
+        { key: 'gestionDispositivos', label: 'Gestión Dispositivos' },
+    ];
+
+    const renderFuncionarios = () => (
+        <View style={s.cardSeccion}>
+            <View style={s.cabeceraLista}>
+                <Text style={s.subtitulo}>Funcionarios cargados</Text>
+                <TouchableOpacity onPress={cargarDatos}>
+                    <Text style={s.link}>Actualizar</Text>
+                </TouchableOpacity>
+            </View>
+
+            {loading ? (
+                <View style={s.estadoCentrado}>
+                    <ActivityIndicator size="large" color="#1a73e8" />
+                </View>
+            ) : funcionarios.length === 0 ? (
+                <Text style={s.vacio}>No hay funcionarios disponibles.</Text>
+            ) : (
+                <FlatList
+                    data={funcionarios}
+                    keyExtractor={(item) => String(item.id_funcionario)}
+                    scrollEnabled={false}
+                    ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+                    renderItem={({ item }) => {
+                        const dispositivosAsignados = dispositivosPorLegajo(item.nroLegajo);
+                        return (
+                            <View style={s.cardFuncionario}>
+                                <Text style={s.cardTitulo}>Legajo: {item.nroLegajo}</Text>
+                                {item.perfil?.usuario?.mail ? <Text style={s.detalle}>{item.perfil.usuario.mail}</Text> : null}
+                                {dispositivosAsignados.length === 0 ? (
+                                    <Text style={s.detalle}>Dispositivo: Sin asignar</Text>
+                                ) : (
+                                    dispositivosAsignados.map((d) => (
+                                        <Text key={`asig-${item.id_funcionario}-${d.id}`} style={s.detalle}>
+                                            Dispositivo: {d.nroSerie ?? `#${d.id}`}
+                                        </Text>
+                                    ))
+                                )}
+                            </View>
+                        );
+                    }}
+                />
+            )}
+        </View>
+    );
+
+    const renderAsignarSector = () => (
+        <View style={s.cardSeccion}>
+            <Text style={s.subtitulo}>Asignar sector de evento</Text>
+            <Text style={s.descripcionSeccion}>
+                Elegí el funcionario y el sector de un partido para crear la asignación.
+            </Text>
+
+            <Text style={s.label}>Funcionario</Text>
+            <View style={s.pickerContainer}>
+                <Picker selectedValue={funcionarioSector} onValueChange={(v) => setFuncionarioSector(String(v))}>
+                    <Picker.Item label="Seleccioná un funcionario" value="" />
+                    {funcionarios.map((funcionario) => (
+                        <Picker.Item
+                            key={String(funcionario.id_funcionario)}
+                            label={`${funcionario.nroLegajo}${funcionario.perfil?.usuario?.mail ? ` - ${funcionario.perfil.usuario.mail}` : ''}`}
+                            value={String(funcionario.id_funcionario)}
+                        />
+                    ))}
+                </Picker>
+            </View>
+
+            <Text style={s.label}>Sector de evento</Text>
+            <View style={s.pickerContainer}>
+                <Picker selectedValue={sectorSeleccionado} onValueChange={(v) => setSectorSeleccionado(String(v))}>
+                    <Picker.Item label="Seleccioná un sector de evento" value="" />
+                    {sectoresEvento.map((sector) => (
+                        <Picker.Item
+                            key={JSON.stringify(sector.id)}
+                            label={`${sector.id.nombreSector} - ${sector.id.estadioNombre}`}
+                            value={JSON.stringify(sector.id)}
+                        />
+                    ))}
+                </Picker>
+            </View>
+
+            <TouchableOpacity
+                style={[s.botonPrimario, actionLoading && s.botonDeshabilitado]}
+                onPress={asignarSector}
+                disabled={actionLoading}
+            >
+                <Text style={s.botonTexto}>{actionLoading ? 'Asignando...' : 'Asignar sector'}</Text>
+            </TouchableOpacity>
+        </View>
+    );
+
+    const renderAsignarDispositivo = () => (
+        <View style={s.cardSeccion}>
+            <Text style={s.subtitulo}>Asignar dispositivo</Text>
+            <Text style={s.descripcionSeccion}>
+                Asociá un dispositivo de escaneo al legajo del funcionario.
+            </Text>
+
+            <Text style={s.label}>Funcionario</Text>
+            <View style={s.pickerContainer}>
+                <Picker selectedValue={funcionarioDispositivo} onValueChange={(v) => setFuncionarioDispositivo(String(v))}>
+                    <Picker.Item label="Seleccioná un funcionario" value="" />
+                    {funcionarios.map((funcionario) => (
+                        <Picker.Item
+                            key={`disp-${funcionario.id_funcionario}`}
+                            label={`${funcionario.nroLegajo}${funcionario.perfil?.usuario?.mail ? ` - ${funcionario.perfil.usuario.mail}` : ''}`}
+                            value={String(funcionario.id_funcionario)}
+                        />
+                    ))}
+                </Picker>
+            </View>
+
+            <Text style={s.label}>Dispositivo</Text>
+            <View style={s.pickerContainer}>
+                <Picker selectedValue={dispositivoSeleccionado} onValueChange={(v) => setDispositivoSeleccionado(String(v))}>
+                    <Picker.Item label="Seleccioná un dispositivo" value="" />
+                    {dispositivos
+                        .filter((d) => typeof d.id === 'number')
+                        .map((dispositivo) => (
+                            <Picker.Item
+                                key={`dev-${dispositivo.id}`}
+                                label={
+                                    `${dispositivo.nroSerie ?? `#${dispositivo.id}`} ${dispositivo.nroLegajo ? `(Asignado a ${dispositivo.nroLegajo})` : '(Sin asignar)'}`
+                                }
+                                value={String(dispositivo.id)}
+                            />
+                        ))}
+                </Picker>
+            </View>
+                {exitoAsignar ? <Text style={s.mensajeExito}>{exitoAsignar}</Text> : null}
+                {errorAsignar ? <Text style={s.mensajeError}>{errorAsignar}</Text> : null}
+            <TouchableOpacity
+                style={[s.botonSecundario, actionLoading && s.botonDeshabilitado]}
+                onPress={asignarDispositivo}
+                disabled={actionLoading}
+            >
+                <Text style={s.botonTexto}>{actionLoading ? 'Asignando...' : 'Asignar dispositivo'}</Text>
+            </TouchableOpacity>
+        </View>
+    );
+
+    const renderGestionDispositivos = () => (
+        <View>
+            {/* Registrar */}
+            <View style={s.cardSeccion}>
+                <Text style={s.subtitulo}>Registrar dispositivo</Text>
+                <Text style={s.descripcionSeccion}>
+                    Ingresá el número de serie del dispositivo físico para darlo de alta en el sistema.
+                </Text>
+                <Text style={s.label}>Número de serie</Text>
+                <TextInput
+                    style={s.input}
+                    placeholder="Ej: SN-ABC123"
+                    value={nuevoNroSerie}
+                    onChangeText={setNuevoNroSerie}
+                    autoCapitalize="characters"
+                />
+                {exitoRegistrar ? <Text style={s.mensajeExito}>{exitoRegistrar}</Text> : null}
+                {errorRegistrar ? <Text style={s.mensajeError}>{errorRegistrar}</Text> : null}
+                <TouchableOpacity
+                    style={[s.botonPrimario, actionLoading && s.botonDeshabilitado]}
+                    onPress={registrarDispositivo}
+                    disabled={actionLoading}
+                >
+                    <Text style={s.botonTexto}>{actionLoading ? 'Registrando...' : 'Registrar dispositivo'}</Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* Lista */}
+            <View style={s.cardSeccion}>
+                <View style={s.cabeceraLista}>
+                    <Text style={s.subtitulo}>Todos los dispositivos</Text>
+                    <TouchableOpacity onPress={cargarDatos}>
+                        <Text style={s.link}>Actualizar</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {loading ? (
+                    <ActivityIndicator size="large" color="#1a73e8" />
+                ) : dispositivos.length === 0 ? (
+                    <Text style={s.vacio}>No hay dispositivos registrados.</Text>
+                ) : (
+                    <FlatList
+                        data={dispositivos}
+                        keyExtractor={(item) => String(item.id)}
+                        scrollEnabled={false}
+                        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+                        renderItem={({ item }) => (
+                            <View style={s.cardDispositivo}>
+                                <View style={s.cardDispositivoInfo}>
+                                    <Text style={s.cardTitulo}>{item.nroSerie ?? `#${item.id}`}</Text>
+                                    {item.nroLegajo ? (
+                                        <Text style={s.detalle}>Asignado a: {item.nroLegajo}</Text>
+                                    ) : (
+                                        <Text style={[s.detalle, s.libre]}>Sin asignar</Text>
+                                    )}
+                                </View>
+                                <TouchableOpacity
+                                    style={s.botonEliminar}
+                                    onPress={() => eliminarDispositivo(item)}
+                                    disabled={actionLoading}
+                                >
+                                    <Text style={s.botonEliminarTexto}>Eliminar</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    />
+                )}
+
+                {exitoEliminar ? <Text style={s.mensajeExito}>{exitoEliminar}</Text> : null}
+                {errorEliminar ? <Text style={s.mensajeError}>{errorEliminar}</Text> : null}
+            </View>
+
+            {/* Desasignar */}
+            <View style={s.cardSeccion}>
+                <Text style={s.subtitulo}>Desasignar dispositivo</Text>
+                <Text style={s.descripcionSeccion}>
+                    Liberá un dispositivo que está actualmente asignado a un funcionario.
+                </Text>
+                <Text style={s.label}>Dispositivo asignado</Text>
+                <View style={s.pickerContainer}>
+                    <Picker
+                        selectedValue={dispositivoADesasignar}
+                        onValueChange={(v) => setDispositivoADesasignar(String(v))}
+                    >
+                        <Picker.Item label="Seleccioná un dispositivo" value="" />
+                        {dispositivos
+                            .filter((d) => typeof d.id === 'number' && d.nroLegajo)
+                            .map((d) => (
+                                <Picker.Item
+                                    key={`desasig-${d.id}`}
+                                    label={`${d.nroSerie ?? `#${d.id}`} → ${d.nroLegajo}`}
+                                    value={String(d.id)}
+                                />
+                            ))}
+                    </Picker>
+                </View>
+                {exitoDesasignar ? <Text style={s.mensajeExito}>{exitoDesasignar}</Text> : null}
+                {errorDesasignar ? <Text style={s.mensajeError}>{errorDesasignar}</Text> : null}
+                <TouchableOpacity
+                    style={[s.botonWarning, actionLoading && s.botonDeshabilitado]}
+                    onPress={desasignarDispositivo}
+                    disabled={actionLoading}
+                >
+                    <Text style={s.botonTexto}>{actionLoading ? 'Desasignando...' : 'Desasignar'}</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+
+    const renderModalEliminar = () => (
+        <Modal
+            visible={modalEliminar}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setModalEliminar(false)}
+        >
+            <View style={s.modalOverlay}>
+                <View style={s.modalCard}>
+                    <Text style={s.modalTitulo}>Confirmar eliminación</Text>
+                    <Text style={s.modalMensaje}>
+                        ¿Estás seguro de que querés eliminar el dispositivo{' '}
+                        <Text style={{ fontWeight: '800' }}>
+                            {dispositivoAEliminar?.nroSerie ?? `#${dispositivoAEliminar?.id}`}
+                        </Text>
+                        ? Esta acción no se puede deshacer.
+                    </Text>
+                    <View style={s.modalBotones}>
+                        <TouchableOpacity
+                            style={s.modalBotonCancelar}
+                            onPress={() => {
+                                setModalEliminar(false);
+                                setDispositivoAEliminar(null);
+                            }}
+                            disabled={actionLoading}
+                        >
+                            <Text style={s.modalBotonCancelarTexto}>Cancelar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[s.modalBotonEliminar, actionLoading && s.botonDeshabilitado]}
+                            onPress={confirmarEliminar}
+                            disabled={actionLoading}
+                        >
+                            <Text style={s.botonTexto}>
+                                {actionLoading ? 'Eliminando...' : 'Eliminar'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+    );
+    return (
+        <>
+        {renderModalEliminar()}
+        <ScrollView style={s.root} contentContainerStyle={s.contenedor}>
+            <Text style={s.titulo}>Gestión de Funcionarios y Dispositivos</Text>
+        <Text style={s.descripcion}>
+            Administrá funcionarios, sectores de eventos y dispositivos de escaneo desde una sola pantalla.
+        </Text>
+
+            <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                data={subtabs}
+                keyExtractor={(item) => item.key}
+                contentContainerStyle={s.subtabsRow}
+                renderItem={({ item }) => (
+                    <TouchableOpacity
+                        style={[s.subtab, subtab === item.key && s.subtabActivo]}
+                        onPress={() => setSubtab(item.key)}
+                    >
+                        <Text style={[s.subtabTexto, subtab === item.key && s.subtabTextoActivo]}>{item.label}</Text>
+                    </TouchableOpacity>
+                )}
+            />
+
+            {subtab === 'funcionarios' && renderFuncionarios()}
+            {subtab === 'sectorEvento' && renderAsignarSector()}
+            {subtab === 'dispositivo' && renderAsignarDispositivo()}
+            {subtab === 'gestionDispositivos' && renderGestionDispositivos()}
+        </ScrollView>
+        </>
+    );
+}
+
+const s = StyleSheet.create({
+    root: { flex: 1, backgroundColor: '#f6f8fc' },
+    contenedor: { padding: 20, paddingBottom: 32 },
+    titulo: { fontSize: 24, fontWeight: '800', color: '#111827', marginBottom: 8 },
+    descripcion: { fontSize: 14, color: '#6b7280', lineHeight: 20, marginBottom: 16 },
+    subtabsRow: { paddingVertical: 6, paddingRight: 8, marginBottom: 12 },
+    subtab: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, marginRight: 8, backgroundColor: '#e5e7eb' },
+    subtabActivo: { backgroundColor: '#1a73e8' },
+    subtabTexto: { color: '#374151', fontSize: 13, fontWeight: '700' },
+    subtabTextoActivo: { color: '#fff' },
+    cardSeccion: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 16, elevation: 2 },
+    subtitulo: { fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 8 },
+    descripcionSeccion: { fontSize: 13, color: '#6b7280', lineHeight: 18, marginBottom: 12 },
+    label: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 4, marginTop: 8 },
+    pickerContainer: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 10, marginBottom: 10, backgroundColor: '#fff', overflow: 'hidden' },
+    botonPrimario: { backgroundColor: '#1a73e8', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 6 },
+    botonSecundario: { backgroundColor: '#0f766e', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 6 },
+    botonDeshabilitado: { opacity: 0.6 },
+    botonTexto: { color: '#fff', fontWeight: '800' },
+    cabeceraLista: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+    link: { color: '#1a73e8', fontWeight: '700' },
+    estadoCentrado: { paddingVertical: 18, alignItems: 'center' },
+    vacio: { color: '#9ca3af', fontStyle: 'italic' },
+    cardFuncionario: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 12, marginTop: 10, backgroundColor: '#fafafa' },
+    cardTitulo: { fontSize: 15, fontWeight: '800', color: '#111827', marginBottom: 4 },
+    detalle: { fontSize: 13, color: '#6b7280', marginTop: 2 },
+    input: {
+        borderWidth: 1,
+        borderColor: '#d1d5db',
+        borderRadius: 10,
+        padding: 12,
+        fontSize: 14,
+        color: '#111827',
+        backgroundColor: '#fff',
+        marginBottom: 10,
+    },
+    cardDispositivo: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#e5e7eb',
+        borderRadius: 12,
+        padding: 12,
+        backgroundColor: '#fafafa',
+    },
+    cardDispositivoInfo: { flex: 1 },
+    libre: { color: '#10b981', fontWeight: '700' },
+    botonEliminar: {
+        backgroundColor: '#ef4444',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+        marginLeft: 8,
+    },
+    botonEliminarTexto: { color: '#fff', fontWeight: '700', fontSize: 13 },
+    botonWarning: {
+        backgroundColor: '#f59e0b',
+        padding: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+        marginTop: 6,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+    },
+    modalCard: {
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 24,
+        width: '100%',
+        maxWidth: 420,
+        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+    },
+    modalTitulo: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#111827',
+        marginBottom: 10,
+    },
+    modalMensaje: {
+        fontSize: 14,
+        color: '#6b7280',
+        lineHeight: 20,
+        marginBottom: 20,
+    },
+    modalBotones: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 10,
+    },
+    modalBotonCancelar: {
+        paddingHorizontal: 18,
+        paddingVertical: 12,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#d1d5db',
+        backgroundColor: '#fff',
+    },
+    modalBotonCancelarTexto: {
+        color: '#374151',
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    modalBotonEliminar: {
+        paddingHorizontal: 18,
+        paddingVertical: 12,
+        borderRadius: 10,
+        backgroundColor: '#ef4444',
+    },
+    mensajeExito: {
+        color: '#10b981',
+        fontWeight: '700',
+        fontSize: 13,
+        marginTop: 8,
+        textAlign: 'center',
+    },
+    mensajeError: {
+        color: '#ef4444',
+        fontWeight: '700',
+        fontSize: 13,
+        marginTop: 8,
+        textAlign: 'center',
+    },
+});

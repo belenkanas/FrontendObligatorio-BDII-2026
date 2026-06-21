@@ -46,7 +46,7 @@ export default function PerfilScreen() {
                 : estadoVerificacion === 'rechazado' ? styles.estadoRechazado
                 : styles.estadoPendiente
             }>
-              {estadoVerificacion}
+              {estadoVerificacion.toUpperCase()}
           </Text>
         </Text>
       ) : null}
