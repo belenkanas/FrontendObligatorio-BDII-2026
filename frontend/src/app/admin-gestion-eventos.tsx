@@ -344,7 +344,7 @@ export default function AdminGestionEventosScreen() {
 
   const renderEventos = () => (
     <View style={s.cardSeccion}>
-      <Text style={s.subtitulo}>Crear nuevo evento</Text>
+      <Text style={s.subtitulo}>Cargar nuevo evento</Text>
       <Text style={s.descripcionSeccion}>Formato fecha-hora sugerido: `YYYY-MM-DDTHH:mm:ss`.</Text>
 
       <Text style={s.label}>Estadio</Text>
@@ -391,7 +391,7 @@ export default function AdminGestionEventosScreen() {
       />
 
       <TouchableOpacity style={[s.botonPrimario, actionLoading && s.botonDeshabilitado]} onPress={crearEvento} disabled={actionLoading}>
-        <Text style={s.botonTexto}>{actionLoading ? 'Creando...' : 'Crear evento'}</Text>
+        <Text style={s.botonTexto}>{actionLoading ? 'Cargando...' : 'Cargar evento'}</Text>
       </TouchableOpacity>
 
       <Text style={[s.subtitulo, { marginTop: 16 }]}>Eventos existentes</Text>
@@ -468,25 +468,25 @@ export default function AdminGestionEventosScreen() {
   const renderMaestros = () => (
     <>
       <View style={s.cardSeccion}>
-        <Text style={s.subtitulo}>Crear equipo</Text>
+        <Text style={s.subtitulo}>Cargar nuevo equipo</Text>
         <TextInput style={s.input} placeholder="Nombre país" value={nuevoEquipo} onChangeText={setNuevoEquipo} />
         <TouchableOpacity style={[s.botonPrimario, actionLoading && s.botonDeshabilitado]} onPress={crearEquipo} disabled={actionLoading}>
-          <Text style={s.botonTexto}>{actionLoading ? 'Creando...' : 'Crear equipo'}</Text>
+          <Text style={s.botonTexto}>{actionLoading ? 'Cargando...' : 'Cargar equipo'}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={s.cardSeccion}>
-        <Text style={s.subtitulo}>Crear estadio</Text>
+        <Text style={s.subtitulo}>Cargar nuevo estadio</Text>
         <TextInput style={s.input} placeholder="Nombre del estadio" value={nuevoEstadioNombre} onChangeText={setNuevoEstadioNombre} />
         <TextInput style={s.input} placeholder="País" value={nuevoEstadioPais} onChangeText={setNuevoEstadioPais} />
         <TextInput style={s.input} placeholder="Ciudad" value={nuevoEstadioCiudad} onChangeText={setNuevoEstadioCiudad} />
         <TouchableOpacity style={[s.botonPrimario, actionLoading && s.botonDeshabilitado]} onPress={crearEstadio} disabled={actionLoading}>
-          <Text style={s.botonTexto}>{actionLoading ? 'Creando...' : 'Crear estadio'}</Text>
+          <Text style={s.botonTexto}>{actionLoading ? 'Cargando...' : 'Cargar estadio'}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={s.cardSeccion}>
-        <Text style={s.subtitulo}>Crear sector en estadio</Text>
+        <Text style={s.subtitulo}>Cargar nuevo sector</Text>
         <Text style={s.label}>Estadio</Text>
         <View style={s.pickerContainer}>
           <Picker selectedValue={estadioParaSector} onValueChange={(v) => setEstadioParaSector(String(v))}>
@@ -510,7 +510,7 @@ export default function AdminGestionEventosScreen() {
           onChangeText={setNuevoSectorCapacidad}
         />
         <TouchableOpacity style={[s.botonPrimario, actionLoading && s.botonDeshabilitado]} onPress={crearSector} disabled={actionLoading}>
-          <Text style={s.botonTexto}>{actionLoading ? 'Creando...' : 'Crear sector'}</Text>
+          <Text style={s.botonTexto}>{actionLoading ? 'Cargando...' : 'Cargar sector'}</Text>
         </TouchableOpacity>
       </View>
     </>
