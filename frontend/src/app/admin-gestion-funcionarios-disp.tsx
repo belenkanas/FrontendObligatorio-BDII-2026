@@ -436,9 +436,6 @@ export default function AdminGestionFuncionariosScreen() {
                 </TouchableOpacity>
             
             <Text style={[s.subtitulo, { marginTop: 16 }]}>Asignaciones actuales</Text>
-            <Text style={s.descripcionSeccion}>
-                Filtrá por evento para ver y eliminar asignaciones existentes.
-            </Text>
 
             {asignacionesSector.length === 0 ? (
                 <Text style={s.vacio}>No hay asignaciones registradas.</Text>
