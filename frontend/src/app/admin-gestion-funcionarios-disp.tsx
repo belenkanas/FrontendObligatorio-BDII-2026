@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 
-type SubTab = 'funcionarios' | 'sectorEvento' | 'dispositivo';
+type SubTab = 'funcionarios' | 'sectorEvento' | 'dispositivo' | 'gestionDispositivos';
 
 type Funcionario = { id: number; nroLegajo: string; mail?: string };
 type SectorEvento = {
@@ -161,6 +161,7 @@ export default function AdminGestionFuncionariosScreen() {
         { key: 'funcionarios', label: 'Funcionarios' },
         { key: 'sectorEvento', label: 'Asignar Sector-Evento' },
         { key: 'dispositivo', label: 'Asignar Dispositivo' },
+        { key: 'gestionDispositivos', label: 'Gestión Dispositivos' },
     ];
 
     const renderFuncionarios = () => (
@@ -301,10 +302,10 @@ export default function AdminGestionFuncionariosScreen() {
 
     return (
         <ScrollView style={s.root} contentContainerStyle={s.contenedor}>
-            <Text style={s.titulo}>Gestión de funcionarios</Text>
-            <Text style={s.descripcion}>
-                Asigná sectores de eventos y dispositivos a los funcionarios desde una sola pantalla.
-            </Text>
+            <Text style={s.titulo}>Gestión de Funcionarios y Dispositivos</Text>
+        <Text style={s.descripcion}>
+            Administrá funcionarios, sectores de eventos y dispositivos de escaneo desde una sola pantalla.
+        </Text>
 
             <FlatList
                 horizontal
