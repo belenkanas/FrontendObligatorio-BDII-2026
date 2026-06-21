@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,7 +16,11 @@ import { Picker } from '@react-native-picker/picker';
 
 type SubTab = 'funcionarios' | 'sectorEvento' | 'dispositivo' | 'gestionDispositivos';
 
-type Funcionario = { id: number; nroLegajo: string; mail?: string };
+type Funcionario = { 
+    id_funcionario: number; 
+    nroLegajo: string; 
+    perfil?: { usuario?: { mail?: string } }
+};
 type SectorEvento = {
     id: {
         nombreSector: string;
@@ -52,6 +57,17 @@ export default function AdminGestionFuncionariosScreen() {
     const [actionLoading, setActionLoading] = useState(false);
     const [nuevoNroSerie, setNuevoNroSerie] = useState('');
     const [dispositivoADesasignar, setDispositivoADesasignar] = useState('');
+    const [modalEliminar, setModalEliminar] = useState(false);
+    const [dispositivoAEliminar, setDispositivoAEliminar] = useState<Dispositivo | null>(null);
+    
+    const [exitoAsignar, setExitoAsignar] = useState('');
+    const [errorAsignar, setErrorAsignar] = useState('');
+    const [exitoRegistrar, setExitoRegistrar] = useState('');
+    const [errorRegistrar, setErrorRegistrar] = useState('');
+    const [exitoDesasignar, setExitoDesasignar] = useState('');
+    const [errorDesasignar, setErrorDesasignar] = useState('');
+    const [exitoEliminar, setExitoEliminar] = useState('');
+    const [errorEliminar, setErrorEliminar] = useState('');
 
     const obtenerMensajeError = (err: any, fallback: string) => {
         const data = err?.response?.data;
@@ -71,11 +87,13 @@ export default function AdminGestionFuncionariosScreen() {
                 api.get('/dispositivos'),
                 api.get('/validaciones'),
             ]);
+            console.log('Dispositivos:', JSON.stringify(dispositivos));
 
             setFuncionarios(Array.isArray(funcionariosRes.data) ? funcionariosRes.data : []);
             setSectoresEvento(Array.isArray(sectoresRes.data) ? sectoresRes.data : []);
             setDispositivos(Array.isArray(dispositivosRes.data) ? dispositivosRes.data : []);
             setValidaciones(Array.isArray(validacionesRes.data) ? validacionesRes.data : []);
+        
         } catch {
             Alert.alert('Error', 'No se pudieron cargar los datos necesarios.');
         } finally {
@@ -89,7 +107,7 @@ export default function AdminGestionFuncionariosScreen() {
             return;
         }
 
-        const funcionario = funcionarios.find((f) => String(f.id) === funcionarioSector);
+        const funcionario = funcionarios.find((f) => String(f.id_funcionario) === funcionarioSector);
         const sector = sectoresEvento.find((s) => JSON.stringify(s.id) === sectorSeleccionado);
 
         if (!funcionario || !sector) {
@@ -120,101 +138,89 @@ export default function AdminGestionFuncionariosScreen() {
     };
 
     const asignarDispositivo = async () => {
+        setExitoAsignar(''); setErrorAsignar('');
         if (!funcionarioDispositivo || !dispositivoSeleccionado) {
-            Alert.alert('Falta información', 'Seleccioná un funcionario y un dispositivo.');
+            setErrorAsignar('Seleccioná un funcionario y un dispositivo.');
             return;
         }
-
-        const funcionario = funcionarios.find((f) => String(f.id) === funcionarioDispositivo);
+        const funcionario = funcionarios.find((f) => String(f.id_funcionario) === funcionarioDispositivo);
         const dispositivoId = Number(dispositivoSeleccionado);
-
         if (!funcionario || !Number.isFinite(dispositivoId)) {
-            Alert.alert('Error', 'No se pudo resolver la selección.');
+            setErrorAsignar('No se pudo resolver la selección.');
             return;
         }
-
         setActionLoading(true);
         try {
-            await api.post('/validaciones', {
-                id: {
-                    nroLegajoFuncionario: funcionario.nroLegajo,
-                    idDispositivoEscaneo: dispositivoId,
-                },
-            });
-
-            Alert.alert('Éxito', 'Dispositivo asignado correctamente.');
+            await api.post(`/dispositivos/${dispositivoId}/asignar`, { nroLegajo: funcionario.nroLegajo });
+            setExitoAsignar('Dispositivo asignado correctamente.');
             setFuncionarioDispositivo('');
             setDispositivoSeleccionado('');
             await cargarDatos();
         } catch (err: any) {
-            Alert.alert('Error', obtenerMensajeError(err, 'No se pudo asignar el dispositivo.'));
+            setErrorAsignar(obtenerMensajeError(err, 'No se pudo asignar el dispositivo.'));
         } finally {
             setActionLoading(false);
         }
     };
 
     const registrarDispositivo = async () => {
+        setExitoRegistrar(''); setErrorRegistrar('');
         if (!nuevoNroSerie.trim()) {
-            Alert.alert('Falta información', 'Ingresá el número de serie del dispositivo.');
+            setErrorRegistrar('Ingresá el número de serie del dispositivo.');
             return;
         }
-
         setActionLoading(true);
         try {
             await api.post('/dispositivos', { nroSerie: nuevoNroSerie.trim() });
-            Alert.alert('Éxito', 'Dispositivo registrado correctamente.');
+            setExitoRegistrar('Dispositivo registrado correctamente.');
             setNuevoNroSerie('');
             await cargarDatos();
         } catch (err: any) {
-            Alert.alert('Error', obtenerMensajeError(err, 'No se pudo registrar el dispositivo.'));
+            setErrorRegistrar(obtenerMensajeError(err, 'No se pudo registrar el dispositivo.'));
         } finally {
             setActionLoading(false);
         }
     };
 
     const desasignarDispositivo = async () => {
+        setExitoDesasignar(''); setErrorDesasignar('');
         if (!dispositivoADesasignar) {
-            Alert.alert('Falta información', 'Seleccioná un dispositivo para desasignar.');
+            setErrorDesasignar('Seleccioná un dispositivo para desasignar.');
             return;
         }
-
         setActionLoading(true);
         try {
             await api.post(`/dispositivos/${dispositivoADesasignar}/desasignar`);
-            Alert.alert('Éxito', 'Dispositivo desasignado correctamente.');
+            setExitoDesasignar('Dispositivo desasignado correctamente.');
             setDispositivoADesasignar('');
             await cargarDatos();
         } catch (err: any) {
-            Alert.alert('Error', obtenerMensajeError(err, 'No se pudo desasignar el dispositivo.'));
+            setErrorDesasignar(obtenerMensajeError(err, 'No se pudo desasignar el dispositivo.'));
         } finally {
             setActionLoading(false);
         }
     };
 
-    const eliminarDispositivo = (id: number) => {
-        Alert.alert(
-            'Confirmar eliminación',
-            '¿Estás segura de que querés eliminar este dispositivo?',
-            [
-                { text: 'Cancelar', style: 'cancel' },
-                {
-                    text: 'Eliminar',
-                    style: 'destructive',
-                    onPress: async () => {
-                        setActionLoading(true);
-                        try {
-                            await api.delete(`/dispositivos/${id}`);
-                            Alert.alert('Éxito', 'Dispositivo eliminado correctamente.');
-                            await cargarDatos();
-                        } catch (err: any) {
-                            Alert.alert('Error', obtenerMensajeError(err, 'No se pudo eliminar el dispositivo.'));
-                        } finally {
-                            setActionLoading(false);
-                        }
-                    },
-                },
-            ]
-        );
+    const eliminarDispositivo = (dispositivo: Dispositivo) => {
+        setDispositivoAEliminar(dispositivo);
+        setModalEliminar(true);
+    };
+
+    const confirmarEliminar = async () => {
+        if (dispositivoAEliminar === null) return;
+        setActionLoading(true);
+        try {
+            await api.delete(`/dispositivos/${dispositivoAEliminar.id}`);
+            setModalEliminar(false);
+            setDispositivoAEliminar(null);
+            setExitoEliminar('Dispositivo eliminado correctamente.');
+            await cargarDatos();
+        } catch (err: any) {
+            setModalEliminar(false);
+            setErrorEliminar(obtenerMensajeError(err, 'No se pudo eliminar el dispositivo.'));
+        } finally {
+            setActionLoading(false);
+        }
     };
 
     useEffect(() => {
@@ -222,11 +228,7 @@ export default function AdminGestionFuncionariosScreen() {
     }, []);
 
     const dispositivosPorLegajo = (legajo: string) => {
-        const idsAsignados = validaciones
-            .filter((v) => v.id?.nroLegajoFuncionario === legajo)
-            .map((v) => v.id?.idDispositivoEscaneo);
-
-        return dispositivos.filter((d) => typeof d.id === 'number' && idsAsignados.includes(d.id));
+        return dispositivos.filter((d) => d.nroLegajo === legajo);
     };
 
     const subtabs: { key: SubTab; label: string }[] = [
@@ -254,7 +256,7 @@ export default function AdminGestionFuncionariosScreen() {
             ) : (
                 <FlatList
                     data={funcionarios}
-                    keyExtractor={(item) => String(item.id)}
+                    keyExtractor={(item) => String(item.id_funcionario)}
                     scrollEnabled={false}
                     ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
                     renderItem={({ item }) => {
@@ -262,13 +264,13 @@ export default function AdminGestionFuncionariosScreen() {
                         return (
                             <View style={s.cardFuncionario}>
                                 <Text style={s.cardTitulo}>Legajo: {item.nroLegajo}</Text>
-                                {item.mail ? <Text style={s.detalle}>{item.mail}</Text> : null}
+                                {item.perfil?.usuario?.mail ? <Text style={s.detalle}>{item.perfil.usuario.mail}</Text> : null}
                                 {dispositivosAsignados.length === 0 ? (
                                     <Text style={s.detalle}>Dispositivo: Sin asignar</Text>
                                 ) : (
                                     dispositivosAsignados.map((d) => (
-                                        <Text key={`asig-${item.id}-${d.id}`} style={s.detalle}>
-                                            Dispositivo asignado: #{d.id}
+                                        <Text key={`asig-${item.id_funcionario}-${d.id}`} style={s.detalle}>
+                                            Dispositivo: {d.nroSerie ?? `#${d.id}`}
                                         </Text>
                                     ))
                                 )}
@@ -293,9 +295,9 @@ export default function AdminGestionFuncionariosScreen() {
                     <Picker.Item label="Seleccioná un funcionario" value="" />
                     {funcionarios.map((funcionario) => (
                         <Picker.Item
-                            key={funcionario.id}
-                            label={`${funcionario.nroLegajo}${funcionario.mail ? ` - ${funcionario.mail}` : ''}`}
-                            value={String(funcionario.id)}
+                            key={String(funcionario.id_funcionario)}
+                            label={`${funcionario.nroLegajo}${funcionario.perfil?.usuario?.mail ? ` - ${funcionario.perfil.usuario.mail}` : ''}`}
+                            value={String(funcionario.id_funcionario)}
                         />
                     ))}
                 </Picker>
@@ -338,9 +340,9 @@ export default function AdminGestionFuncionariosScreen() {
                     <Picker.Item label="Seleccioná un funcionario" value="" />
                     {funcionarios.map((funcionario) => (
                         <Picker.Item
-                            key={`disp-${funcionario.id}`}
-                            label={`${funcionario.nroLegajo}${funcionario.mail ? ` - ${funcionario.mail}` : ''}`}
-                            value={String(funcionario.id)}
+                            key={`disp-${funcionario.id_funcionario}`}
+                            label={`${funcionario.nroLegajo}${funcionario.perfil?.usuario?.mail ? ` - ${funcionario.perfil.usuario.mail}` : ''}`}
+                            value={String(funcionario.id_funcionario)}
                         />
                     ))}
                 </Picker>
@@ -355,13 +357,16 @@ export default function AdminGestionFuncionariosScreen() {
                         .map((dispositivo) => (
                             <Picker.Item
                                 key={`dev-${dispositivo.id}`}
-                                label={`ID #${dispositivo.id}${dispositivo.nroLegajo ? ` (legajo base: ${dispositivo.nroLegajo})` : ''}`}
+                                label={
+                                    `${dispositivo.nroSerie ?? `#${dispositivo.id}`} ${dispositivo.nroLegajo ? `(Asignado a ${dispositivo.nroLegajo})` : '(Sin asignar)'}`
+                                }
                                 value={String(dispositivo.id)}
                             />
                         ))}
                 </Picker>
             </View>
-
+                {exitoAsignar ? <Text style={s.mensajeExito}>{exitoAsignar}</Text> : null}
+                {errorAsignar ? <Text style={s.mensajeError}>{errorAsignar}</Text> : null}
             <TouchableOpacity
                 style={[s.botonSecundario, actionLoading && s.botonDeshabilitado]}
                 onPress={asignarDispositivo}
@@ -388,6 +393,8 @@ export default function AdminGestionFuncionariosScreen() {
                     onChangeText={setNuevoNroSerie}
                     autoCapitalize="characters"
                 />
+                {exitoRegistrar ? <Text style={s.mensajeExito}>{exitoRegistrar}</Text> : null}
+                {errorRegistrar ? <Text style={s.mensajeError}>{errorRegistrar}</Text> : null}
                 <TouchableOpacity
                     style={[s.botonPrimario, actionLoading && s.botonDeshabilitado]}
                     onPress={registrarDispositivo}
@@ -428,7 +435,7 @@ export default function AdminGestionFuncionariosScreen() {
                                 </View>
                                 <TouchableOpacity
                                     style={s.botonEliminar}
-                                    onPress={() => eliminarDispositivo(item.id!)}
+                                    onPress={() => eliminarDispositivo(item)}
                                     disabled={actionLoading}
                                 >
                                     <Text style={s.botonEliminarTexto}>Eliminar</Text>
@@ -437,6 +444,9 @@ export default function AdminGestionFuncionariosScreen() {
                         )}
                     />
                 )}
+
+                {exitoEliminar ? <Text style={s.mensajeExito}>{exitoEliminar}</Text> : null}
+                {errorEliminar ? <Text style={s.mensajeError}>{errorEliminar}</Text> : null}
             </View>
 
             {/* Desasignar */}
@@ -463,6 +473,8 @@ export default function AdminGestionFuncionariosScreen() {
                             ))}
                     </Picker>
                 </View>
+                {exitoDesasignar ? <Text style={s.mensajeExito}>{exitoDesasignar}</Text> : null}
+                {errorDesasignar ? <Text style={s.mensajeError}>{errorDesasignar}</Text> : null}
                 <TouchableOpacity
                     style={[s.botonWarning, actionLoading && s.botonDeshabilitado]}
                     onPress={desasignarDispositivo}
@@ -474,7 +486,51 @@ export default function AdminGestionFuncionariosScreen() {
         </View>
     );
 
+    const renderModalEliminar = () => (
+        <Modal
+            visible={modalEliminar}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setModalEliminar(false)}
+        >
+            <View style={s.modalOverlay}>
+                <View style={s.modalCard}>
+                    <Text style={s.modalTitulo}>Confirmar eliminación</Text>
+                    <Text style={s.modalMensaje}>
+                        ¿Estás seguro de que querés eliminar el dispositivo{' '}
+                        <Text style={{ fontWeight: '800' }}>
+                            {dispositivoAEliminar?.nroSerie ?? `#${dispositivoAEliminar?.id}`}
+                        </Text>
+                        ? Esta acción no se puede deshacer.
+                    </Text>
+                    <View style={s.modalBotones}>
+                        <TouchableOpacity
+                            style={s.modalBotonCancelar}
+                            onPress={() => {
+                                setModalEliminar(false);
+                                setDispositivoAEliminar(null);
+                            }}
+                            disabled={actionLoading}
+                        >
+                            <Text style={s.modalBotonCancelarTexto}>Cancelar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[s.modalBotonEliminar, actionLoading && s.botonDeshabilitado]}
+                            onPress={confirmarEliminar}
+                            disabled={actionLoading}
+                        >
+                            <Text style={s.botonTexto}>
+                                {actionLoading ? 'Eliminando...' : 'Eliminar'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+    );
     return (
+        <>
+        {renderModalEliminar()}
         <ScrollView style={s.root} contentContainerStyle={s.contenedor}>
             <Text style={s.titulo}>Gestión de Funcionarios y Dispositivos</Text>
         <Text style={s.descripcion}>
@@ -502,6 +558,7 @@ export default function AdminGestionFuncionariosScreen() {
             {subtab === 'dispositivo' && renderAsignarDispositivo()}
             {subtab === 'gestionDispositivos' && renderGestionDispositivos()}
         </ScrollView>
+        </>
     );
 }
 
@@ -567,5 +624,74 @@ const s = StyleSheet.create({
         borderRadius: 12,
         alignItems: 'center',
         marginTop: 6,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+    },
+    modalCard: {
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 24,
+        width: '100%',
+        maxWidth: 420,
+        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+    },
+    modalTitulo: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#111827',
+        marginBottom: 10,
+    },
+    modalMensaje: {
+        fontSize: 14,
+        color: '#6b7280',
+        lineHeight: 20,
+        marginBottom: 20,
+    },
+    modalBotones: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 10,
+    },
+    modalBotonCancelar: {
+        paddingHorizontal: 18,
+        paddingVertical: 12,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#d1d5db',
+        backgroundColor: '#fff',
+    },
+    modalBotonCancelarTexto: {
+        color: '#374151',
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    modalBotonEliminar: {
+        paddingHorizontal: 18,
+        paddingVertical: 12,
+        borderRadius: 10,
+        backgroundColor: '#ef4444',
+    },
+    mensajeExito: {
+        color: '#10b981',
+        fontWeight: '700',
+        fontSize: 13,
+        marginTop: 8,
+        textAlign: 'center',
+    },
+    mensajeError: {
+        color: '#ef4444',
+        fontWeight: '700',
+        fontSize: 13,
+        marginTop: 8,
+        textAlign: 'center',
     },
 });
