@@ -12,6 +12,8 @@ import {
   View,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import { Platform } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 type SubTab = 'eventos' | 'habilitarSectores' | 'maestros';
 
@@ -52,6 +54,7 @@ type SectorEvento = {
     estadioDireccionCiudad: string;
     fechaHoraPartido: string;
   };
+  costo?: number;
 };
 
 type Estadio = {
@@ -119,6 +122,13 @@ export default function AdminGestionEventosScreen() {
   const [eventoParaSector, setEventoParaSector] = useState('');
   const [sectorParaHabilitar, setSectorParaHabilitar] = useState('');
 
+  const [exitoSector, setExitoSector] = useState('');
+  const [errorSector, setErrorSector] = useState('');
+
+  const [exitoHabilitar, setExitoHabilitar] = useState('');
+  const [errorHabilitar, setErrorHabilitar] = useState('');
+  const [costoSector, setCostoSector] = useState('');
+
   const [nuevoEquipo, setNuevoEquipo] = useState('');
   const [nuevoEstadioNombre, setNuevoEstadioNombre] = useState('');
   const [nuevoEstadioPais, setNuevoEstadioPais] = useState('');
@@ -126,6 +136,13 @@ export default function AdminGestionEventosScreen() {
   const [nuevoSectorNombre, setNuevoSectorNombre] = useState('');
   const [nuevoSectorCapacidad, setNuevoSectorCapacidad] = useState('');
   const [estadioParaSector, setEstadioParaSector] = useState('');
+
+  const [fechaEvento, setFechaEvento] = useState<Date>(new Date());
+  const [mostrarDatePicker, setMostrarDatePicker] = useState(false);
+  const [mostrarTimePicker, setMostrarTimePicker] = useState(false);
+
+  const [exitoEvento, setExitoEvento] = useState('');
+  const [errorEvento, setErrorEvento] = useState('');
   
 
   const [loading, setLoading] = useState(false);
@@ -143,6 +160,11 @@ export default function AdminGestionEventosScreen() {
   const labelEstadio = (e: Estadio) => {
     const id = e.id ?? (e as any);
     return `${id?.nombre ?? ''} - ${id?.direccion_ciudad ?? ''}, ${id?.direccion_pais ?? ''}`;
+  };
+
+  const formatearFecha = (date: Date): string => {
+      const pad = (n: number) => String(n).padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
   };
 
   const cargarDatos = async () => {
@@ -173,94 +195,114 @@ export default function AdminGestionEventosScreen() {
   }, []);
 
   const crearEvento = async () => {
-    if (!estadioEventoSeleccionado || !equipoLocal || !equipoVisitante || !fechaHoraEvento.trim()) {
-      Alert.alert('Falta información', 'Completá estadio, equipos y fecha/hora del evento.');
-      return;
-    }
-    if (equipoLocal === equipoVisitante) {
-      Alert.alert('Validación', 'El equipo local y visitante deben ser distintos.');
-      return;
-    }
+      setExitoEvento(''); setErrorEvento('');
 
-    const estadio = estadios.find((e) => JSON.stringify(e.id ?? e) === estadioEventoSeleccionado);
-    const estadioId = estadio?.id ?? (estadio as any);
-    if (!estadioId?.nombre) {
-      Alert.alert('Error', 'No se pudo resolver el estadio seleccionado.');
-      return;
-    }
+      if (!estadioEventoSeleccionado || !equipoLocal || !equipoVisitante) {
+          setErrorEvento('Completá estadio, equipos y fecha/hora del evento.');
+          return;
+      }
+      if (equipoLocal === equipoVisitante) {
+          setErrorEvento('El equipo local y visitante deben ser distintos.');
+          return;
+      }
+      if (fechaEvento <= new Date()) {
+          setErrorEvento('La fecha y hora del evento debe ser posterior a la fecha actual.');
+          return;
+      }
 
-    setActionLoading(true);
-    try {
-      await api.post('/eventos', {
-        id: {
-          estadioNombre: estadioId.nombre,
-          estadioDireccionPais: estadioId.direccion_pais,
-          estadioDireccionCiudad: estadioId.direccion_ciudad,
-          fechaHoraPartido: fechaHoraEvento.trim(),
-          nombrePaisEquipoLocal: equipoLocal,
-          nombrePaisEquipoVisitante: equipoVisitante,
-        },
-      });
+      const estadio = estadios.find((e) => JSON.stringify(e.id ?? e) === estadioEventoSeleccionado);
+      const estadioId = estadio?.id ?? (estadio as any);
+      if (!estadioId?.nombre) {
+          setErrorEvento('No se pudo resolver el estadio seleccionado.');
+          return;
+      }
 
-      Alert.alert('Éxito', 'Evento creado correctamente.');
-      setFechaHoraEvento('');
-      setEquipoLocal('');
-      setEquipoVisitante('');
-      await cargarDatos();
-    } catch (err: any) {
-      Alert.alert('Error', obtenerMensajeError(err, 'No se pudo crear el evento.'));
-    } finally {
-      setActionLoading(false);
-    }
+      setActionLoading(true);
+      try {
+          await api.post('/eventos', {
+              id: {
+                  estadioNombre: estadioId.nombre,
+                  estadioDireccionPais: estadioId.direccion_pais,
+                  estadioDireccionCiudad: estadioId.direccion_ciudad,
+                  fechaHoraPartido: formatearFecha(fechaEvento),
+                  nombrePaisEquipoLocal: equipoLocal,
+                  nombrePaisEquipoVisitante: equipoVisitante,
+              },
+          });
+
+          setExitoEvento('Evento creado correctamente.');
+          setEquipoLocal('');
+          setEquipoVisitante('');
+          setEstadioEventoSeleccionado('');
+          setFechaEvento(new Date());
+          await cargarDatos();
+      } catch (err: any) {
+          setErrorEvento(obtenerMensajeError(err, 'No se pudo crear el evento.'));
+      } finally {
+          setActionLoading(false);
+      }
   };
 
   const habilitarSector = async () => {
-    if (!eventoParaSector || !sectorParaHabilitar) {
-      Alert.alert('Falta información', 'Seleccioná evento y sector para habilitar.');
-      return;
-    }
+      setExitoHabilitar(''); setErrorHabilitar('');
 
-    const evento = eventos.find((e) => {
-      const id = normalizarEventoId(e);
-      return id && JSON.stringify(id) === eventoParaSector;
-    });
-    const eventoId = evento ? normalizarEventoId(evento) : null;
+      if (!eventoParaSector || !sectorParaHabilitar) {
+          setErrorHabilitar('Seleccioná un evento y un sector para habilitar.');
+          return;
+      }
+      if (!costoSector.trim() || isNaN(Number(costoSector)) || Number(costoSector) < 0) {
+          setErrorHabilitar('Ingresá un costo válido mayor o igual a 0.');
+          return;
+      }
 
-    const sector = sectores.find((s) => JSON.stringify(s.id) === sectorParaHabilitar);
-    if (!eventoId || !sector) {
-      Alert.alert('Error', 'No se pudo resolver evento o sector seleccionado.');
-      return;
-    }
-
-    const sectoresFiltrados = eventoParaSector
-    ? sectores.filter((s) => {
-        const eventoId = eventos
-            .map(normalizarEventoId)
-            .find((id) => id && JSON.stringify(id) === eventoParaSector);
-        return eventoId && s.id.estadioNombre === eventoId.estadioNombre;
-    })
-    : [];
-
-    setActionLoading(true);
-    try {
-      await api.post('/sector-eventos', {
-        id: {
-          nombreSector: sector.id.nombre,
-          estadioNombre: eventoId.estadioNombre,
-          estadioDireccionPais: eventoId.estadioDireccionPais,
-          estadioDireccionCiudad: eventoId.estadioDireccionCiudad,
-          fechaHoraPartido: eventoId.fechaHoraPartido,
-        },
+      const evento = eventos.find((e) => {
+          const id = normalizarEventoId(e);
+          return id && JSON.stringify(id) === eventoParaSector;
       });
+      const eventoId = evento ? normalizarEventoId(evento) : null;
+      const sector = sectores.find((s) => JSON.stringify(s.id) === sectorParaHabilitar);
 
-      Alert.alert('Éxito', 'Sector habilitado para el evento.');
-      setSectorParaHabilitar('');
-      await cargarDatos();
-    } catch (err: any) {
-      Alert.alert('Error', obtenerMensajeError(err, 'No se pudo habilitar el sector.'));
-    } finally {
-      setActionLoading(false);
-    }
+      if (!eventoId || !sector) {
+          setErrorHabilitar('No se pudo resolver evento o sector seleccionado.');
+          return;
+      }
+
+      setActionLoading(true);
+      try {
+          await api.post('/sector-eventos', {
+              id: {
+                  nombreSector: sector.id.nombre,
+                  estadioNombre: eventoId.estadioNombre,
+                  estadioDireccionPais: eventoId.estadioDireccionPais,
+                  estadioDireccionCiudad: eventoId.estadioDireccionCiudad,
+                  fechaHoraPartido: eventoId.fechaHoraPartido,
+              },
+              costo: Number(costoSector),
+          });
+
+          setExitoHabilitar(`Sector "${sector.id.nombre}" habilitado correctamente.`);
+          setSectorParaHabilitar('');
+          setCostoSector('');
+          await cargarDatos();
+      } catch (err: any) {
+          setErrorHabilitar(obtenerMensajeError(err, 'No se pudo habilitar el sector.'));
+      } finally {
+          setActionLoading(false);
+      }
+  };
+
+  const deshabilitarSector = async (sector: SectorEvento) => {
+      setExitoSector(''); setErrorSector('');
+      setActionLoading(true);
+      try {
+          await api.delete('/sector-eventos/deshabilitar', { data: { id: sector.id } });
+          setExitoSector(`Sector "${sector.id.nombreSector}" deshabilitado correctamente.`);
+          await cargarDatos();
+      } catch (err: any) {
+          setErrorSector(obtenerMensajeError(err, 'No se pudo deshabilitar el sector.'));
+      } finally {
+          setActionLoading(false);
+      }
   };
 
   const crearEquipo = async () => {
@@ -353,189 +395,295 @@ export default function AdminGestionEventosScreen() {
   };
 
   const renderEventos = () => (
-    <View style={s.cardSeccion}>
-      <Text style={s.subtitulo}>Cargar nuevo evento</Text>
-      <Text style={s.descripcionSeccion}>Formato fecha-hora sugerido: `YYYY-MM-DDTHH:mm:ss`.</Text>
+      <View style={s.cardSeccion}>
+          <Text style={s.subtitulo}>Cargar nuevo evento</Text>
 
-      <Text style={s.label}>Estadio</Text>
-      <View style={s.pickerContainer}>
-        <Picker selectedValue={estadioEventoSeleccionado} onValueChange={(v) => setEstadioEventoSeleccionado(String(v))}>
-          <Picker.Item label="Seleccioná un estadio" value="" />
-          {estadios.map((estadio) => (
-            <Picker.Item
-              key={JSON.stringify(estadio.id ?? estadio)}
-              label={labelEstadio(estadio)}
-              value={JSON.stringify(estadio.id ?? estadio)}
-            />
-          ))}
-        </Picker>
+          <Text style={s.label}>Estadio</Text>
+          <View style={s.pickerContainer}>
+              <Picker selectedValue={estadioEventoSeleccionado} onValueChange={(v) => setEstadioEventoSeleccionado(String(v))}>
+                  <Picker.Item label="Seleccioná un estadio" value="" />
+                  {estadios.map((estadio) => (
+                      <Picker.Item
+                          key={JSON.stringify(estadio.id ?? estadio)}
+                          label={labelEstadio(estadio)}
+                          value={JSON.stringify(estadio.id ?? estadio)}
+                      />
+                  ))}
+              </Picker>
+          </View>
+
+          <Text style={s.label}>Equipo local</Text>
+          <View style={s.pickerContainer}>
+              <Picker selectedValue={equipoLocal} onValueChange={(v) => setEquipoLocal(String(v))}>
+                  <Picker.Item label="Seleccioná el equipo local" value="" />
+                  {equipos.map((equipo) => (
+                      <Picker.Item key={`local-${equipo.nombrePais}`} label={equipo.nombrePais} value={equipo.nombrePais} />
+                  ))}
+              </Picker>
+          </View>
+
+          <Text style={s.label}>Equipo visitante</Text>
+          <View style={s.pickerContainer}>
+              <Picker selectedValue={equipoVisitante} onValueChange={(v) => setEquipoVisitante(String(v))}>
+                  <Picker.Item label="Seleccioná el equipo visitante" value="" />
+                  {equipos.map((equipo) => (
+                      <Picker.Item key={`visita-${equipo.nombrePais}`} label={equipo.nombrePais} value={equipo.nombrePais} />
+                  ))}
+              </Picker>
+          </View>
+
+          <Text style={s.label}>Fecha y hora del evento</Text>
+
+          {Platform.OS === 'web' ? (
+              <input
+                  type="datetime-local"
+                  min={new Date().toISOString().slice(0, 16)}
+                  value={formatearFecha(fechaEvento).slice(0, 16)}
+                  onChange={(e) => {
+                      if (e.target.value) {
+                          setFechaEvento(new Date(e.target.value));
+                      }
+                  }}
+                  style={{
+                      borderWidth: 1,
+                      borderColor: '#d1d5db',
+                      borderRadius: 10,
+                      padding: 12,
+                      marginBottom: 10,
+                      backgroundColor: '#fff',
+                      fontSize: 14,
+                      width: '100%',
+                      boxSizing: 'border-box',
+                  } as any}
+              />
+          ) : (
+              <>
+                  <View style={s.fechaContainer}>
+                      <TouchableOpacity style={s.fechaBoton} onPress={() => setMostrarDatePicker(true)}>
+                          <Text style={s.fechaBotonTexto}>
+                              📅 {fechaEvento.toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={s.fechaBoton} onPress={() => setMostrarTimePicker(true)}>
+                          <Text style={s.fechaBotonTexto}>
+                              🕐 {fechaEvento.toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit' })}
+                          </Text>
+                      </TouchableOpacity>
+                  </View>
+
+                  {mostrarDatePicker && (
+                      <DateTimePicker
+                          value={fechaEvento}
+                          mode="date"
+                          minimumDate={new Date()}
+                          display="default"
+                          onChange={(event, selectedDate) => {
+                              setMostrarDatePicker(false);
+                              if (selectedDate) {
+                                  const nueva = new Date(fechaEvento);
+                                  nueva.setFullYear(selectedDate.getFullYear());
+                                  nueva.setMonth(selectedDate.getMonth());
+                                  nueva.setDate(selectedDate.getDate());
+                                  setFechaEvento(nueva);
+                              }
+                          }}
+                      />
+                  )}
+
+                  {mostrarTimePicker && (
+                      <DateTimePicker
+                          value={fechaEvento}
+                          mode="time"
+                          display="default"
+                          onChange={(event, selectedDate) => {
+                              setMostrarTimePicker(false);
+                              if (selectedDate) {
+                                  const nueva = new Date(fechaEvento);
+                                  nueva.setHours(selectedDate.getHours());
+                                  nueva.setMinutes(selectedDate.getMinutes());
+                                  setFechaEvento(nueva);
+                              }
+                          }}
+                      />
+                  )}
+              </>
+          )}
+
+          {exitoEvento ? <Text style={s.mensajeExito}>{exitoEvento}</Text> : null}
+          {errorEvento ? <Text style={s.mensajeError}>{errorEvento}</Text> : null}
+
+          <TouchableOpacity
+              style={[s.botonPrimario, actionLoading && s.botonDeshabilitado]}
+              onPress={crearEvento}
+              disabled={actionLoading}
+          >
+              <Text style={s.botonTexto}>{actionLoading ? 'Cargando...' : 'Cargar evento'}</Text>
+          </TouchableOpacity>
       </View>
-
-      <Text style={s.label}>Equipo local</Text>
-      <View style={s.pickerContainer}>
-        <Picker selectedValue={equipoLocal} onValueChange={(v) => setEquipoLocal(String(v))}>
-          <Picker.Item label="Seleccioná el equipo local" value="" />
-          {equipos.map((equipo) => (
-            <Picker.Item key={`local-${equipo.nombrePais}`} label={equipo.nombrePais} value={equipo.nombrePais} />
-          ))}
-        </Picker>
-      </View>
-
-      <Text style={s.label}>Equipo visitante</Text>
-      <View style={s.pickerContainer}>
-        <Picker selectedValue={equipoVisitante} onValueChange={(v) => setEquipoVisitante(String(v))}>
-          <Picker.Item label="Seleccioná el equipo visitante" value="" />
-          {equipos.map((equipo) => (
-            <Picker.Item key={`visita-${equipo.nombrePais}`} label={equipo.nombrePais} value={equipo.nombrePais} />
-          ))}
-        </Picker>
-      </View>
-
-      <Text style={s.label}>Fecha y hora</Text>
-      <TextInput
-        style={s.input}
-        placeholder="2026-07-10T20:30:00"
-        value={fechaHoraEvento}
-        onChangeText={setFechaHoraEvento}
-        autoCapitalize="none"
-      />
-
-      <TouchableOpacity style={[s.botonPrimario, actionLoading && s.botonDeshabilitado]} onPress={crearEvento} disabled={actionLoading}>
-        <Text style={s.botonTexto}>{actionLoading ? 'Cargando...' : 'Cargar evento'}</Text>
-      </TouchableOpacity>
-    </View>
   );
 
   const renderHabilitarSectores = () => {
-    // Filtrar sectores del estadio del evento seleccionado
-    const eventoIdSeleccionado = eventoParaSector
-        ? eventos.map(normalizarEventoId).find((id) => id && JSON.stringify(id) === eventoParaSector)
-        : null;
+      const eventoIdSeleccionado = eventoParaSector
+          ? eventos.map(normalizarEventoId).find((id) => id && JSON.stringify(id) === eventoParaSector)
+          : null;
 
-    const sectoresFiltrados = eventoIdSeleccionado
-        ? sectores.filter((s) => s.id.estadioNombre === eventoIdSeleccionado.estadioNombre
-            && s.id.estadioDireccionPais === eventoIdSeleccionado.estadioDireccionPais
-            && s.id.estadioDireccionCiudad === eventoIdSeleccionado.estadioDireccionCiudad)
-        : [];
+      const sectoresFiltrados = eventoIdSeleccionado
+          ? sectores.filter((s) =>
+              s.id.estadioNombre === eventoIdSeleccionado.estadioNombre &&
+              s.id.estadioDireccionPais === eventoIdSeleccionado.estadioDireccionPais &&
+              s.id.estadioDireccionCiudad === eventoIdSeleccionado.estadioDireccionCiudad)
+          : [];
 
-    // Sectores ya habilitados para el evento seleccionado
-    const sectoresYaHabilitados = eventoIdSeleccionado
-        ? sectoresEvento.filter((se) =>
-            se.id.estadioNombre === eventoIdSeleccionado.estadioNombre &&
-            se.id.estadioDireccionPais === eventoIdSeleccionado.estadioDireccionPais &&
-            se.id.estadioDireccionCiudad === eventoIdSeleccionado.estadioDireccionCiudad &&
-            se.id.fechaHoraPartido === eventoIdSeleccionado.fechaHoraPartido
-        )
-        : [];
+      const sectoresYaHabilitados = eventoIdSeleccionado
+          ? sectoresEvento.filter((se) =>
+              se.id.estadioNombre === eventoIdSeleccionado.estadioNombre &&
+              se.id.estadioDireccionPais === eventoIdSeleccionado.estadioDireccionPais &&
+              se.id.estadioDireccionCiudad === eventoIdSeleccionado.estadioDireccionCiudad &&
+              se.id.fechaHoraPartido === eventoIdSeleccionado.fechaHoraPartido)
+          : [];
 
-    const nombresYaHabilitados = sectoresYaHabilitados.map((se) => se.id.nombreSector);
+      const nombresYaHabilitados = sectoresYaHabilitados.map((se) => se.id.nombreSector);
+      const sectoresDisponibles = sectoresFiltrados.filter((s) => !nombresYaHabilitados.includes(s.id.nombre));
 
-    const sectoresDisponibles = sectoresFiltrados.filter(
-        (s) => !nombresYaHabilitados.includes(s.id.nombre)
-    );
+      return (
+          <View style={s.cardSeccion}>
+              <Text style={s.subtitulo}>Habilitar sectores para eventos</Text>
 
-    return (
-        <View style={s.cardSeccion}>
-            <Text style={s.subtitulo}>Habilitar sectores para eventos</Text>
+              <Text style={s.label}>Evento</Text>
+              <View style={s.pickerContainer}>
+                  <Picker
+                      selectedValue={eventoParaSector}
+                      onValueChange={(v) => {
+                          setEventoParaSector(String(v));
+                          setSectorParaHabilitar('');
+                          setCostoSector('');
+                          setExitoHabilitar('');
+                          setErrorHabilitar('');
+                      }}
+                  >
+                      <Picker.Item label="Seleccioná un evento" value="" />
+                      {eventos
+                          .map((evento) => normalizarEventoId(evento))
+                          .filter((id): id is EventoId => !!id)
+                          .map((id) => (
+                              <Picker.Item
+                                  key={JSON.stringify(id)}
+                                  label={labelEvento(id)}
+                                  value={JSON.stringify(id)}
+                              />
+                          ))}
+                  </Picker>
+              </View>
 
-            <Text style={s.label}>Evento</Text>
-            <View style={s.pickerContainer}>
-                <Picker
-                    selectedValue={eventoParaSector}
-                    onValueChange={(v) => {
-                        setEventoParaSector(String(v));
-                        setSectorParaHabilitar(''); // resetear sector al cambiar evento
-                    }}
-                >
-                    <Picker.Item label="Seleccioná un evento" value="" />
-                    {eventos
-                        .map((evento) => normalizarEventoId(evento))
-                        .filter((id): id is EventoId => !!id)
-                        .map((id) => (
-                            <Picker.Item
-                                key={JSON.stringify(id)}
-                                label={labelEvento(id)}
-                                value={JSON.stringify(id)}
-                            />
-                        ))}
-                </Picker>
-            </View>
+              <Text style={s.label}>
+                  Sector{eventoIdSeleccionado ? ` (${sectoresDisponibles.length} disponibles)` : ''}
+              </Text>
+              <View style={s.pickerContainer}>
+                  <Picker
+                      selectedValue={sectorParaHabilitar}
+                      onValueChange={(v) => setSectorParaHabilitar(String(v))}
+                      enabled={!!eventoIdSeleccionado && sectoresDisponibles.length > 0}
+                  >
+                      <Picker.Item
+                          label={
+                              !eventoIdSeleccionado
+                                  ? 'Primero seleccioná un evento'
+                                  : sectoresDisponibles.length === 0
+                                  ? 'Todos los sectores ya están habilitados'
+                                  : 'Seleccioná un sector'
+                          }
+                          value=""
+                      />
+                      {sectoresDisponibles.map((sector) => (
+                          <Picker.Item
+                              key={JSON.stringify(sector.id)}
+                              label={sector.id.nombre}
+                              value={JSON.stringify(sector.id)}
+                          />
+                      ))}
+                  </Picker>
+              </View>
 
-            <Text style={s.label}>
-                Sector{eventoIdSeleccionado ? ` (${sectoresDisponibles.length} disponibles)` : ''}
-            </Text>
-            <View style={s.pickerContainer}>
-                <Picker
-                    selectedValue={sectorParaHabilitar}
-                    onValueChange={(v) => setSectorParaHabilitar(String(v))}
-                    enabled={!!eventoIdSeleccionado}
-                >
-                    <Picker.Item
-                        label={eventoIdSeleccionado ? 'Seleccioná un sector' : 'Primero seleccioná un evento'}
-                        value=""
-                    />
-                    {sectoresDisponibles.map((sector) => (
-                        <Picker.Item
-                            key={JSON.stringify(sector.id)}
-                            label={sector.id.nombre}
-                            value={JSON.stringify(sector.id)}
-                        />
-                    ))}
-                </Picker>
-            </View>
+              <Text style={s.label}>Costo de entrada (USD)</Text>
+              <TextInput
+                  style={s.input}
+                  placeholder="Ej: 50.00"
+                  value={costoSector}
+                  onChangeText={setCostoSector}
+                  keyboardType="decimal-pad"
+                  editable={!!eventoIdSeleccionado && !!sectorParaHabilitar}
+              />
 
-            <TouchableOpacity
-                style={[s.botonPrimario, actionLoading && s.botonDeshabilitado]}
-                onPress={habilitarSector}
-                disabled={actionLoading}
-            >
-                <Text style={s.botonTexto}>{actionLoading ? 'Habilitando...' : 'Habilitar sector'}</Text>
-            </TouchableOpacity>
+              {exitoHabilitar ? <Text style={s.mensajeExito}>{exitoHabilitar}</Text> : null}
+              {errorHabilitar ? <Text style={s.mensajeError}>{errorHabilitar}</Text> : null}
 
-            {/* Sectores ya habilitados para el evento seleccionado */}
-            {eventoIdSeleccionado && (
-                <>
-                    <Text style={[s.subtitulo, { marginTop: 16 }]}>
-                        Sectores habilitados para este evento
-                    </Text>
-                    {sectoresYaHabilitados.length === 0 ? (
-                        <Text style={s.vacio}>No hay sectores habilitados para este evento.</Text>
-                    ) : (
-                        <FlatList
-                            data={sectoresYaHabilitados}
-                            keyExtractor={(item, index) => String(index)}
-                            scrollEnabled={false}
-                            renderItem={({ item }) => (
-                                <Text style={s.detalle}>• {item.id.nombreSector}</Text>
-                            )}
-                        />
-                    )}
-                </>
-            )}
+              <TouchableOpacity
+                  style={[s.botonPrimario, (actionLoading || !sectorParaHabilitar || !costoSector.trim()) && s.botonDeshabilitado]}
+                  onPress={habilitarSector}
+                  disabled={actionLoading || !sectorParaHabilitar || !costoSector.trim()}
+              >
+                  <Text style={s.botonTexto}>{actionLoading ? 'Habilitando...' : 'Habilitar sector'}</Text>
+              </TouchableOpacity>
 
-            {/* Lista global si no hay evento seleccionado */}
-            {!eventoIdSeleccionado && (
-                <>
-                    <Text style={[s.subtitulo, { marginTop: 16 }]}>Todos los sectores habilitados</Text>
-                    {sectoresEvento.length === 0 ? (
-                        <Text style={s.vacio}>No hay sectores habilitados en eventos.</Text>
-                    ) : (
-                        <FlatList
-                            data={sectoresEvento}
-                            keyExtractor={(item, index) => String(index)}
-                            scrollEnabled={false}
-                            renderItem={({ item }) => (
-                                <Text style={s.detalle}>
-                                    • {item.id.nombreSector} - {item.id.estadioNombre} - {item.id.fechaHoraPartido}
-                                </Text>
-                            )}
-                        />
-                    )}
-                </>
-            )}
-        </View>
-    );
-};
+              {/* Sectores ya habilitados para el evento seleccionado */}
+              {eventoIdSeleccionado && (
+                  <>
+                      <Text style={[s.subtitulo, { marginTop: 16 }]}>
+                          Sectores habilitados para este evento
+                      </Text>
+                      {sectoresYaHabilitados.length === 0 ? (
+                          <Text style={s.vacio}>No hay sectores habilitados para este evento.</Text>
+                      ) : (
+                          <FlatList
+                              data={sectoresYaHabilitados}
+                              keyExtractor={(item, index) => String(index)}
+                              scrollEnabled={false}
+                              ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
+                              renderItem={({ item }) => (
+                                  <View style={s.cardSectorHabilitado}>
+                                      <Text style={s.detalle}>
+                                          • {item.id.nombreSector}{item.costo !== undefined ? ` — USD ${item.costo}` : ''}
+                                      </Text>
+                                      <TouchableOpacity
+                                          style={s.botonDeshabilitar}
+                                          onPress={() => deshabilitarSector(item)}
+                                          disabled={actionLoading}
+                                      >
+                                          <Text style={s.botonDeshabilitarTexto}>Deshabilitar</Text>
+                                      </TouchableOpacity>
+                                  </View>
+                              )}
+                          />
+                      )}
+                      {exitoSector ? <Text style={s.mensajeExito}>{exitoSector}</Text> : null}
+                      {errorSector ? <Text style={s.mensajeError}>{errorSector}</Text> : null}
+                  </>
+              )}
+
+              {/* Lista global si no hay evento seleccionado */}
+              {!eventoIdSeleccionado && (
+                  <>
+                      <Text style={[s.subtitulo, { marginTop: 16 }]}>Todos los sectores habilitados</Text>
+                      {sectoresEvento.length === 0 ? (
+                          <Text style={s.vacio}>No hay sectores habilitados en eventos.</Text>
+                      ) : (
+                          <FlatList
+                              data={sectoresEvento}
+                              keyExtractor={(item, index) => String(index)}
+                              scrollEnabled={false}
+                              renderItem={({ item }) => (
+                                  <Text style={s.detalle}>
+                                      • {item.id.nombreSector} - {item.id.estadioNombre} - {item.id.fechaHoraPartido}
+                                      {item.costo !== undefined ? ` — USD ${item.costo}` : ''}
+                                  </Text>
+                              )}
+                          />
+                      )}
+                  </>
+              )}
+          </View>
+      );
+  };
 
   const renderMaestros = () => (
     <>
@@ -643,6 +791,56 @@ const s = StyleSheet.create({
   estadoCentrado: { paddingVertical: 18, alignItems: 'center' },
   vacio: { color: '#9ca3af', fontStyle: 'italic' },
   detalle: { fontSize: 13, color: '#6b7280', marginTop: 2 },
+  cardSectorHabilitado: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 6,
+  },
+  botonDeshabilitar: {
+      backgroundColor: '#f59e0b',
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+  },
+  botonDeshabilitarTexto: {
+      color: '#fff',
+      fontWeight: '700',
+      fontSize: 12,
+  },
+  mensajeExito: {
+      color: '#10b981',
+      fontWeight: '700',
+      fontSize: 13,
+      marginTop: 8,
+      textAlign: 'center',
+  },
+  mensajeError: {
+      color: '#ef4444',
+      fontWeight: '700',
+      fontSize: 13,
+      marginTop: 8,
+      textAlign: 'center',
+  },
+  fechaContainer: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 10,
+  },
+  fechaBoton: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: '#d1d5db',
+      borderRadius: 10,
+      padding: 12,
+      backgroundColor: '#fff',
+      alignItems: 'center',
+  },
+  fechaBotonTexto: {
+      fontSize: 14,
+      color: '#111827',
+      fontWeight: '600',
+  },
 });
 
 

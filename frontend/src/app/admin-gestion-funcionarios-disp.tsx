@@ -87,7 +87,7 @@ export default function AdminGestionFuncionariosScreen() {
                 api.get('/dispositivos'),
                 api.get('/validaciones'),
             ]);
-            console.log('Dispositivos:', JSON.stringify(dispositivos));
+            //console.log('Dispositivos:', JSON.stringify(dispositivos));
 
             setFuncionarios(Array.isArray(funcionariosRes.data) ? funcionariosRes.data : []);
             setSectoresEvento(Array.isArray(sectoresRes.data) ? sectoresRes.data : []);
