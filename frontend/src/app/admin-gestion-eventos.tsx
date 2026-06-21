@@ -126,6 +126,7 @@ export default function AdminGestionEventosScreen() {
   const [nuevoSectorNombre, setNuevoSectorNombre] = useState('');
   const [nuevoSectorCapacidad, setNuevoSectorCapacidad] = useState('');
   const [estadioParaSector, setEstadioParaSector] = useState('');
+  
 
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -230,6 +231,15 @@ export default function AdminGestionEventosScreen() {
       Alert.alert('Error', 'No se pudo resolver evento o sector seleccionado.');
       return;
     }
+
+    const sectoresFiltrados = eventoParaSector
+    ? sectores.filter((s) => {
+        const eventoId = eventos
+            .map(normalizarEventoId)
+            .find((id) => id && JSON.stringify(id) === eventoParaSector);
+        return eventoId && s.id.estadioNombre === eventoId.estadioNombre;
+    })
+    : [];
 
     setActionLoading(true);
     try {
@@ -393,77 +403,139 @@ export default function AdminGestionEventosScreen() {
       <TouchableOpacity style={[s.botonPrimario, actionLoading && s.botonDeshabilitado]} onPress={crearEvento} disabled={actionLoading}>
         <Text style={s.botonTexto}>{actionLoading ? 'Cargando...' : 'Cargar evento'}</Text>
       </TouchableOpacity>
-
-      <Text style={[s.subtitulo, { marginTop: 16 }]}>Eventos existentes</Text>
-      {eventos.length === 0 ? (
-        <Text style={s.vacio}>No hay eventos cargados.</Text>
-      ) : (
-        <FlatList
-          data={eventos}
-          keyExtractor={(item, index) => String(index)}
-          scrollEnabled={false}
-          renderItem={({ item }) => {
-            const id = normalizarEventoId(item);
-            if (!id) return null;
-            return <Text style={s.detalle}>• {labelEvento(id)}</Text>;
-          }}
-        />
-      )}
     </View>
   );
 
-  const renderHabilitarSectores = () => (
-    <View style={s.cardSeccion}>
-      <Text style={s.subtitulo}>Habilitar sectores para eventos</Text>
+  const renderHabilitarSectores = () => {
+    // Filtrar sectores del estadio del evento seleccionado
+    const eventoIdSeleccionado = eventoParaSector
+        ? eventos.map(normalizarEventoId).find((id) => id && JSON.stringify(id) === eventoParaSector)
+        : null;
 
-      <Text style={s.label}>Evento</Text>
-      <View style={s.pickerContainer}>
-        <Picker selectedValue={eventoParaSector} onValueChange={(v) => setEventoParaSector(String(v))}>
-          <Picker.Item label="Seleccioná un evento" value="" />
-          {eventos
-            .map((evento) => normalizarEventoId(evento))
-            .filter((id): id is EventoId => !!id)
-            .map((id) => (
-              <Picker.Item key={JSON.stringify(id)} label={labelEvento(id)} value={JSON.stringify(id)} />
-            ))}
-        </Picker>
-      </View>
+    const sectoresFiltrados = eventoIdSeleccionado
+        ? sectores.filter((s) => s.id.estadioNombre === eventoIdSeleccionado.estadioNombre
+            && s.id.estadioDireccionPais === eventoIdSeleccionado.estadioDireccionPais
+            && s.id.estadioDireccionCiudad === eventoIdSeleccionado.estadioDireccionCiudad)
+        : [];
 
-      <Text style={s.label}>Sector</Text>
-      <View style={s.pickerContainer}>
-        <Picker selectedValue={sectorParaHabilitar} onValueChange={(v) => setSectorParaHabilitar(String(v))}>
-          <Picker.Item label="Seleccioná un sector" value="" />
-          {sectores.map((sector) => (
-            <Picker.Item
-              key={JSON.stringify(sector.id)}
-              label={`${sector.id.nombre} - ${sector.id.estadioNombre}`}
-              value={JSON.stringify(sector.id)}
-            />
-          ))}
-        </Picker>
-      </View>
+    // Sectores ya habilitados para el evento seleccionado
+    const sectoresYaHabilitados = eventoIdSeleccionado
+        ? sectoresEvento.filter((se) =>
+            se.id.estadioNombre === eventoIdSeleccionado.estadioNombre &&
+            se.id.estadioDireccionPais === eventoIdSeleccionado.estadioDireccionPais &&
+            se.id.estadioDireccionCiudad === eventoIdSeleccionado.estadioDireccionCiudad &&
+            se.id.fechaHoraPartido === eventoIdSeleccionado.fechaHoraPartido
+        )
+        : [];
 
-      <TouchableOpacity style={[s.botonPrimario, actionLoading && s.botonDeshabilitado]} onPress={habilitarSector} disabled={actionLoading}>
-        <Text style={s.botonTexto}>{actionLoading ? 'Habilitando...' : 'Habilitar sector'}</Text>
-      </TouchableOpacity>
+    const nombresYaHabilitados = sectoresYaHabilitados.map((se) => se.id.nombreSector);
 
-      <Text style={[s.subtitulo, { marginTop: 16 }]}>Sectores ya habilitados</Text>
-      {sectoresEvento.length === 0 ? (
-        <Text style={s.vacio}>No hay sectores habilitados en eventos.</Text>
-      ) : (
-        <FlatList
-          data={sectoresEvento}
-          keyExtractor={(item, index) => String(index)}
-          scrollEnabled={false}
-          renderItem={({ item }) => (
-            <Text style={s.detalle}>
-              • {item.id.nombreSector} - {item.id.estadioNombre} - {item.id.fechaHoraPartido}
+    const sectoresDisponibles = sectoresFiltrados.filter(
+        (s) => !nombresYaHabilitados.includes(s.id.nombre)
+    );
+
+    return (
+        <View style={s.cardSeccion}>
+            <Text style={s.subtitulo}>Habilitar sectores para eventos</Text>
+
+            <Text style={s.label}>Evento</Text>
+            <View style={s.pickerContainer}>
+                <Picker
+                    selectedValue={eventoParaSector}
+                    onValueChange={(v) => {
+                        setEventoParaSector(String(v));
+                        setSectorParaHabilitar(''); // resetear sector al cambiar evento
+                    }}
+                >
+                    <Picker.Item label="Seleccioná un evento" value="" />
+                    {eventos
+                        .map((evento) => normalizarEventoId(evento))
+                        .filter((id): id is EventoId => !!id)
+                        .map((id) => (
+                            <Picker.Item
+                                key={JSON.stringify(id)}
+                                label={labelEvento(id)}
+                                value={JSON.stringify(id)}
+                            />
+                        ))}
+                </Picker>
+            </View>
+
+            <Text style={s.label}>
+                Sector{eventoIdSeleccionado ? ` (${sectoresDisponibles.length} disponibles)` : ''}
             </Text>
-          )}
-        />
-      )}
-    </View>
-  );
+            <View style={s.pickerContainer}>
+                <Picker
+                    selectedValue={sectorParaHabilitar}
+                    onValueChange={(v) => setSectorParaHabilitar(String(v))}
+                    enabled={!!eventoIdSeleccionado}
+                >
+                    <Picker.Item
+                        label={eventoIdSeleccionado ? 'Seleccioná un sector' : 'Primero seleccioná un evento'}
+                        value=""
+                    />
+                    {sectoresDisponibles.map((sector) => (
+                        <Picker.Item
+                            key={JSON.stringify(sector.id)}
+                            label={sector.id.nombre}
+                            value={JSON.stringify(sector.id)}
+                        />
+                    ))}
+                </Picker>
+            </View>
+
+            <TouchableOpacity
+                style={[s.botonPrimario, actionLoading && s.botonDeshabilitado]}
+                onPress={habilitarSector}
+                disabled={actionLoading}
+            >
+                <Text style={s.botonTexto}>{actionLoading ? 'Habilitando...' : 'Habilitar sector'}</Text>
+            </TouchableOpacity>
+
+            {/* Sectores ya habilitados para el evento seleccionado */}
+            {eventoIdSeleccionado && (
+                <>
+                    <Text style={[s.subtitulo, { marginTop: 16 }]}>
+                        Sectores habilitados para este evento
+                    </Text>
+                    {sectoresYaHabilitados.length === 0 ? (
+                        <Text style={s.vacio}>No hay sectores habilitados para este evento.</Text>
+                    ) : (
+                        <FlatList
+                            data={sectoresYaHabilitados}
+                            keyExtractor={(item, index) => String(index)}
+                            scrollEnabled={false}
+                            renderItem={({ item }) => (
+                                <Text style={s.detalle}>• {item.id.nombreSector}</Text>
+                            )}
+                        />
+                    )}
+                </>
+            )}
+
+            {/* Lista global si no hay evento seleccionado */}
+            {!eventoIdSeleccionado && (
+                <>
+                    <Text style={[s.subtitulo, { marginTop: 16 }]}>Todos los sectores habilitados</Text>
+                    {sectoresEvento.length === 0 ? (
+                        <Text style={s.vacio}>No hay sectores habilitados en eventos.</Text>
+                    ) : (
+                        <FlatList
+                            data={sectoresEvento}
+                            keyExtractor={(item, index) => String(index)}
+                            scrollEnabled={false}
+                            renderItem={({ item }) => (
+                                <Text style={s.detalle}>
+                                    • {item.id.nombreSector} - {item.id.estadioNombre} - {item.id.fechaHoraPartido}
+                                </Text>
+                            )}
+                        />
+                    )}
+                </>
+            )}
+        </View>
+    );
+};
 
   const renderMaestros = () => (
     <>
