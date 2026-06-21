@@ -21,6 +21,19 @@ type Funcionario = {
     nroLegajo: string; 
     perfil?: { usuario?: { mail?: string } }
 };
+
+type FuncionarioAsignadoSector = {
+    id: {
+        nroLegajo: string;
+        nombreSector: string;
+        estadioNombre: string;
+        estadioDireccionPais: string;
+        estadioDireccionCiudad: string;
+        fechaHoraPartido: string;
+    };
+    idDispositivoEscaneo?: number | null;
+};
+
 type SectorEvento = {
     id: {
         nombreSector: string;
@@ -83,6 +96,10 @@ export default function AdminGestionFuncionariosScreen() {
     const [exitoAsignarSector, setExitoAsignarSector] = useState('');
     const [errorAsignarSector, setErrorAsignarSector] = useState('');
 
+    const [asignacionesSector, setAsignacionesSector] = useState<FuncionarioAsignadoSector[]>([]);
+    const [exitoDesasignarSector, setExitoDesasignarSector] = useState('');
+    const [errorDesasignarSector, setErrorDesasignarSector] = useState('');
+
     const obtenerMensajeError = (err: any, fallback: string) => {
         const data = err?.response?.data;
         if (!data) return fallback;
@@ -95,12 +112,13 @@ export default function AdminGestionFuncionariosScreen() {
     const cargarDatos = async () => {
         setLoading(true);
         try {
-            const [funcionariosRes, sectoresRes, dispositivosRes, validacionesRes, eventosRes] = await Promise.all([
+            const [funcionariosRes, sectoresRes, dispositivosRes, validacionesRes, eventosRes, asignacionesSectorRes] = await Promise.all([
                 api.get('/funcionarios'),
                 api.get('/sector-eventos'),
                 api.get('/dispositivos'),
                 api.get('/validaciones'),
                 api.get('/eventos'),
+                api.get('/funcionarios-asignados-sector'),
             ]);
 
             setFuncionarios(Array.isArray(funcionariosRes.data) ? funcionariosRes.data : []);
@@ -108,6 +126,7 @@ export default function AdminGestionFuncionariosScreen() {
             setDispositivos(Array.isArray(dispositivosRes.data) ? dispositivosRes.data : []);
             setValidaciones(Array.isArray(validacionesRes.data) ? validacionesRes.data : []);
             setEventos(Array.isArray(eventosRes.data) ? eventosRes.data : []);
+            setAsignacionesSector(Array.isArray(asignacionesSectorRes.data) ? asignacionesSectorRes.data : []);
         } catch {
             Alert.alert('Error', 'No se pudieron cargar los datos necesarios.');
         } finally {
@@ -150,6 +169,22 @@ export default function AdminGestionFuncionariosScreen() {
             await cargarDatos();
         } catch (err: any) {
             setErrorAsignarSector(obtenerMensajeError(err, 'No se pudo asignar el sector.'));
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const desasignarSector = async (asignacion: FuncionarioAsignadoSector) => {
+        setExitoDesasignarSector(''); setErrorDesasignarSector('');
+        setActionLoading(true);
+        try {
+            await api.delete(
+                `/funcionarios-asignados-sector/${asignacion.id.nroLegajo}/${asignacion.id.nombreSector}/${asignacion.id.estadioNombre}/${asignacion.id.estadioDireccionPais}/${asignacion.id.estadioDireccionCiudad}`
+            );
+            setExitoDesasignarSector('Asignación eliminada correctamente.');
+            await cargarDatos();
+        } catch (err: any) {
+            setErrorDesasignarSector(obtenerMensajeError(err, 'No se pudo eliminar la asignación.'));
         } finally {
             setActionLoading(false);
         }
@@ -399,6 +434,48 @@ export default function AdminGestionFuncionariosScreen() {
                 >
                     <Text style={s.botonTexto}>{actionLoading ? 'Asignando...' : 'Asignar sector'}</Text>
                 </TouchableOpacity>
+            
+            <Text style={[s.subtitulo, { marginTop: 16 }]}>Asignaciones actuales</Text>
+            <Text style={s.descripcionSeccion}>
+                Filtrá por evento para ver y eliminar asignaciones existentes.
+            </Text>
+
+            {asignacionesSector.length === 0 ? (
+                <Text style={s.vacio}>No hay asignaciones registradas.</Text>
+            ) : (
+                <FlatList
+                    data={asignacionesSector.filter((a) =>
+                        !eventoParaAsignar ||
+                        (a.id.estadioNombre === eventos.find((e) => JSON.stringify(e.id) === eventoParaAsignar)?.id.estadioNombre &&
+                        a.id.fechaHoraPartido === eventos.find((e) => JSON.stringify(e.id) === eventoParaAsignar)?.id.fechaHoraPartido)
+                    )}
+                    keyExtractor={(item, index) => String(index)}
+                    scrollEnabled={false}
+                    ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
+                    renderItem={({ item }) => (
+                        <View style={s.cardSectorHabilitado}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={s.detalle}>
+                                    {item.id.nroLegajo} → {item.id.nombreSector}
+                                </Text>
+                                <Text style={[s.detalle, { fontSize: 11, color: '#9ca3af' }]}>
+                                    {item.id.estadioNombre} - {item.id.fechaHoraPartido}
+                                </Text>
+                            </View>
+                            <TouchableOpacity
+                                style={s.botonEliminar}
+                                onPress={() => desasignarSector(item)}
+                                disabled={actionLoading}
+                            >
+                                <Text style={s.botonEliminarTexto}>Quitar</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                />
+            )}
+
+            {exitoDesasignarSector ? <Text style={s.mensajeExito}>{exitoDesasignarSector}</Text> : null}
+            {errorDesasignarSector ? <Text style={s.mensajeError}>{errorDesasignarSector}</Text> : null}          
             </View>
         );
     };
@@ -769,5 +846,15 @@ const s = StyleSheet.create({
         fontSize: 13,
         marginTop: 8,
         textAlign: 'center',
+    },
+    cardSectorHabilitado: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#e5e7eb',
+        borderRadius: 12,
+        padding: 12,
+        backgroundColor: '#fafafa',
     },
 });
