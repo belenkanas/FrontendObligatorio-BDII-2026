@@ -563,15 +563,15 @@ export default function AdminGestionEventosScreen() {
                   >
                       <Picker.Item label="Seleccioná un evento" value="" />
                       {eventos
-                          .map((evento) => normalizarEventoId(evento))
-                          .filter((id): id is EventoId => !!id)
-                          .map((id) => (
-                              <Picker.Item
-                                  key={JSON.stringify(id)}
-                                  label={labelEvento(id)}
-                                  value={JSON.stringify(id)}
-                              />
-                          ))}
+                        .map((evento) => normalizarEventoId(evento))
+                        .filter((id): id is EventoId => !!id && new Date(id.fechaHoraPartido) > new Date())
+                        .map((id) => (
+                            <Picker.Item
+                                key={JSON.stringify(id)}
+                                label={labelEvento(id)}
+                                value={JSON.stringify(id)}
+                            />
+                        ))}
                   </Picker>
               </View>
 

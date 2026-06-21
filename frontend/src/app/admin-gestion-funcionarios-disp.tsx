@@ -69,6 +69,20 @@ export default function AdminGestionFuncionariosScreen() {
     const [exitoEliminar, setExitoEliminar] = useState('');
     const [errorEliminar, setErrorEliminar] = useState('');
 
+    const [eventos, setEventos] = useState<{
+        id: {
+            estadioNombre: string;
+            estadioDireccionPais: string;
+            estadioDireccionCiudad: string;
+            fechaHoraPartido: string;
+            nombrePaisEquipoLocal: string;
+            nombrePaisEquipoVisitante: string;
+        }
+    }[]>([]);
+    const [eventoParaAsignar, setEventoParaAsignar] = useState('');
+    const [exitoAsignarSector, setExitoAsignarSector] = useState('');
+    const [errorAsignarSector, setErrorAsignarSector] = useState('');
+
     const obtenerMensajeError = (err: any, fallback: string) => {
         const data = err?.response?.data;
         if (!data) return fallback;
@@ -81,19 +95,19 @@ export default function AdminGestionFuncionariosScreen() {
     const cargarDatos = async () => {
         setLoading(true);
         try {
-            const [funcionariosRes, sectoresRes, dispositivosRes, validacionesRes] = await Promise.all([
+            const [funcionariosRes, sectoresRes, dispositivosRes, validacionesRes, eventosRes] = await Promise.all([
                 api.get('/funcionarios'),
                 api.get('/sector-eventos'),
                 api.get('/dispositivos'),
                 api.get('/validaciones'),
+                api.get('/eventos'),
             ]);
-            //console.log('Dispositivos:', JSON.stringify(dispositivos));
 
             setFuncionarios(Array.isArray(funcionariosRes.data) ? funcionariosRes.data : []);
             setSectoresEvento(Array.isArray(sectoresRes.data) ? sectoresRes.data : []);
             setDispositivos(Array.isArray(dispositivosRes.data) ? dispositivosRes.data : []);
             setValidaciones(Array.isArray(validacionesRes.data) ? validacionesRes.data : []);
-        
+            setEventos(Array.isArray(eventosRes.data) ? eventosRes.data : []);
         } catch {
             Alert.alert('Error', 'No se pudieron cargar los datos necesarios.');
         } finally {
@@ -102,8 +116,10 @@ export default function AdminGestionFuncionariosScreen() {
     };
 
     const asignarSector = async () => {
-        if (!funcionarioSector || !sectorSeleccionado) {
-            Alert.alert('Falta información', 'Seleccioná un funcionario y un sector de evento.');
+        setExitoAsignarSector(''); setErrorAsignarSector('');
+
+        if (!funcionarioSector || !eventoParaAsignar || !sectorSeleccionado) {
+            setErrorAsignarSector('Seleccioná un funcionario, un evento y un sector.');
             return;
         }
 
@@ -111,7 +127,7 @@ export default function AdminGestionFuncionariosScreen() {
         const sector = sectoresEvento.find((s) => JSON.stringify(s.id) === sectorSeleccionado);
 
         if (!funcionario || !sector) {
-            Alert.alert('Error', 'No se pudo resolver la selección.');
+            setErrorAsignarSector('No se pudo resolver la selección.');
             return;
         }
 
@@ -124,14 +140,16 @@ export default function AdminGestionFuncionariosScreen() {
                     estadioNombre: sector.id.estadioNombre,
                     estadioDireccionPais: sector.id.estadioDireccionPais,
                     estadioDireccionCiudad: sector.id.estadioDireccionCiudad,
+                    fechaHoraPartido: sector.id.fechaHoraPartido,
                 },
             });
 
-            Alert.alert('Éxito', 'Sector asignado correctamente.');
+            setExitoAsignarSector('Sector asignado correctamente.');
             setSectorSeleccionado('');
+            setEventoParaAsignar('');
             await cargarDatos();
         } catch (err: any) {
-            Alert.alert('Error', obtenerMensajeError(err, 'No se pudo asignar el sector.'));
+            setErrorAsignarSector(obtenerMensajeError(err, 'No se pudo asignar el sector.'));
         } finally {
             setActionLoading(false);
         }
@@ -282,50 +300,108 @@ export default function AdminGestionFuncionariosScreen() {
         </View>
     );
 
-    const renderAsignarSector = () => (
-        <View style={s.cardSeccion}>
-            <Text style={s.subtitulo}>Asignar sector de evento</Text>
-            <Text style={s.descripcionSeccion}>
-                Elegí el funcionario y el sector de un partido para crear la asignación.
-            </Text>
+    const renderAsignarSector = () => {
+        const eventoSeleccionado = eventoParaAsignar
+            ? eventos.find((e) => JSON.stringify(e.id) === eventoParaAsignar)
+            : null;
 
-            <Text style={s.label}>Funcionario</Text>
-            <View style={s.pickerContainer}>
-                <Picker selectedValue={funcionarioSector} onValueChange={(v) => setFuncionarioSector(String(v))}>
-                    <Picker.Item label="Seleccioná un funcionario" value="" />
-                    {funcionarios.map((funcionario) => (
+        const sectoresFiltrados = eventoSeleccionado
+            ? sectoresEvento.filter((se) =>
+                se.id.estadioNombre === eventoSeleccionado.id.estadioNombre &&
+                se.id.estadioDireccionPais === eventoSeleccionado.id.estadioDireccionPais &&
+                se.id.estadioDireccionCiudad === eventoSeleccionado.id.estadioDireccionCiudad &&
+                se.id.fechaHoraPartido === eventoSeleccionado.id.fechaHoraPartido
+            )
+            : [];
+
+        return (
+            <View style={s.cardSeccion}>
+                <Text style={s.subtitulo}>Asignar sector de evento</Text>
+                <Text style={s.descripcionSeccion}>
+                    Elegí el funcionario, el evento y el sector habilitado para crear la asignación.
+                </Text>
+
+                <Text style={s.label}>Funcionario</Text>
+                <View style={s.pickerContainer}>
+                    <Picker
+                        selectedValue={funcionarioSector}
+                        onValueChange={(v) => setFuncionarioSector(String(v))}
+                    >
+                        <Picker.Item label="Seleccioná un funcionario" value="" />
+                        {funcionarios.map((funcionario) => (
+                            <Picker.Item
+                                key={String(funcionario.id_funcionario)}
+                                label={`${funcionario.nroLegajo}${funcionario.perfil?.usuario?.mail ? ` - ${funcionario.perfil.usuario.mail}` : ''}`}
+                                value={String(funcionario.id_funcionario)}
+                            />
+                        ))}
+                    </Picker>
+                </View>
+
+                <Text style={s.label}>Evento</Text>
+                <View style={s.pickerContainer}>
+                    <Picker
+                        selectedValue={eventoParaAsignar}
+                        onValueChange={(v) => {
+                            setEventoParaAsignar(String(v));
+                            setSectorSeleccionado('');
+                        }}
+                    >
+                        <Picker.Item label="Seleccioná un evento" value="" />
+                        {eventos
+                            .filter((e) => new Date(e.id.fechaHoraPartido) > new Date())
+                            .map((evento) => (
+                                <Picker.Item
+                                    key={JSON.stringify(evento.id)}
+                                    label={`${evento.id.nombrePaisEquipoLocal} vs ${evento.id.nombrePaisEquipoVisitante} - ${evento.id.estadioNombre} - ${evento.id.fechaHoraPartido}`}
+                                    value={JSON.stringify(evento.id)}
+                                />
+                            ))}
+                    </Picker>
+                </View>
+
+                <Text style={s.label}>
+                    Sector habilitado{eventoSeleccionado ? ` (${sectoresFiltrados.length} disponibles)` : ''}
+                </Text>
+                <View style={s.pickerContainer}>
+                    <Picker
+                        selectedValue={sectorSeleccionado}
+                        onValueChange={(v) => setSectorSeleccionado(String(v))}
+                        enabled={!!eventoSeleccionado && sectoresFiltrados.length > 0}
+                    >
                         <Picker.Item
-                            key={String(funcionario.id_funcionario)}
-                            label={`${funcionario.nroLegajo}${funcionario.perfil?.usuario?.mail ? ` - ${funcionario.perfil.usuario.mail}` : ''}`}
-                            value={String(funcionario.id_funcionario)}
+                            label={
+                                !eventoSeleccionado
+                                    ? 'Primero seleccioná un evento'
+                                    : sectoresFiltrados.length === 0
+                                    ? 'No hay sectores habilitados para este evento'
+                                    : 'Seleccioná un sector'
+                            }
+                            value=""
                         />
-                    ))}
-                </Picker>
-            </View>
+                        {sectoresFiltrados.map((sector) => (
+                            <Picker.Item
+                                key={JSON.stringify(sector.id)}
+                                label={sector.id.nombreSector}
+                                value={JSON.stringify(sector.id)}
+                            />
+                        ))}
+                    </Picker>
+                </View>
 
-            <Text style={s.label}>Sector de evento</Text>
-            <View style={s.pickerContainer}>
-                <Picker selectedValue={sectorSeleccionado} onValueChange={(v) => setSectorSeleccionado(String(v))}>
-                    <Picker.Item label="Seleccioná un sector de evento" value="" />
-                    {sectoresEvento.map((sector) => (
-                        <Picker.Item
-                            key={JSON.stringify(sector.id)}
-                            label={`${sector.id.nombreSector} - ${sector.id.estadioNombre}`}
-                            value={JSON.stringify(sector.id)}
-                        />
-                    ))}
-                </Picker>
-            </View>
+                {exitoAsignarSector ? <Text style={s.mensajeExito}>{exitoAsignarSector}</Text> : null}
+                {errorAsignarSector ? <Text style={s.mensajeError}>{errorAsignarSector}</Text> : null}
 
-            <TouchableOpacity
-                style={[s.botonPrimario, actionLoading && s.botonDeshabilitado]}
-                onPress={asignarSector}
-                disabled={actionLoading}
-            >
-                <Text style={s.botonTexto}>{actionLoading ? 'Asignando...' : 'Asignar sector'}</Text>
-            </TouchableOpacity>
-        </View>
-    );
+                <TouchableOpacity
+                    style={[s.botonPrimario, (actionLoading || !sectorSeleccionado) && s.botonDeshabilitado]}
+                    onPress={asignarSector}
+                    disabled={actionLoading || !sectorSeleccionado}
+                >
+                    <Text style={s.botonTexto}>{actionLoading ? 'Asignando...' : 'Asignar sector'}</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    };
 
     const renderAsignarDispositivo = () => (
         <View style={s.cardSeccion}>
