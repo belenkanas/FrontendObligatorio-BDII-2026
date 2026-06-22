@@ -28,7 +28,6 @@ type EventoFuncionario = {
 function parseFecha(rawFecha: any) {
     if (!rawFecha) return null;
 
-    // LocalDateTime de Java puede llegar como string ISO o como array [year, month, day, hour, minute, second]
     if (Array.isArray(rawFecha)) {
         const [year, month, day, hour = 0, minute = 0, second = 0] = rawFecha;
         const fecha = new Date(year, month - 1, day, hour, minute, second);
@@ -53,7 +52,6 @@ function formatearFecha(fecha: Date | null) {
     });
 }
 
-// Normaliza una fecha (string ISO o array de Java) a una clave de comparación estable
 function claveFecha(rawFecha: any): string {
     const fecha = parseFecha(rawFecha);
     return fecha ? fecha.toISOString() : String(rawFecha);
@@ -70,7 +68,6 @@ async function cargarAsignacionesFuncionario(idPerfil: number): Promise<EventoFu
     const entradas = Array.isArray(entradasRes.data) ? entradasRes.data : [];
     const escaneos = Array.isArray(escaneosRes.data) ? escaneosRes.data : [];
 
-    // Contar entradas vendidas por sector+evento (clave: sector|estadio|pais|ciudad|fecha)
     const vendidasPorSector: Record<string, number> = {};
     entradas.forEach((en: any) => {
         const key = [
@@ -83,7 +80,6 @@ async function cargarAsignacionesFuncionario(idPerfil: number): Promise<EventoFu
         vendidasPorSector[key] = (vendidasPorSector[key] ?? 0) + 1;
     });
 
-    // Contar escaneos válidos por dispositivo (clave: idDispositivoEscaneo)
     const escaneadasPorDispositivo: Record<string, number> = {};
     escaneos.forEach((esc: any) => {
         const idDispositivo = esc?.id?.idDispositivoEscaneo;
@@ -145,7 +141,6 @@ export default function FuncionarioScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState('');
 
-    // Estado del escaneo QR
     const [eventoSeleccionado, setEventoSeleccionado] = useState<EventoFuncionario | null>(null);
     const [sectorSeleccionado, setSectorSeleccionado] = useState<SectorAsignado | null>(null);
     const [escaneoActivo, setEscaneoActivo] = useState(false);
@@ -198,7 +193,7 @@ export default function FuncionarioScreen() {
         setEventoSeleccionado(null);
         setSectorSeleccionado(null);
         setProcesando(false);
-        cargarDatos(); // refresca conteos al cerrar el escaneo
+        cargarDatos();
     };
 
     const handleQRDetectado = async ({ data }: { data: string }) => {
@@ -211,11 +206,13 @@ export default function FuncionarioScreen() {
                 idFuncionario: usuario.idPerfil,
                 idDispositivoEscaneo: sectorSeleccionado?.idDispositivoEscaneo,
             });
-            Alert.alert('Entrada válida', response.data?.mensaje ?? 'El ingreso fue registrado correctamente.');
+            console.log('RESULTADO ESCANEO:', response.data);
+            window.alert(response.data?.mensaje ?? 'Entrada válida');
+            cerrarEscaneo();
         } catch (err: any) {
-            Alert.alert('Entrada inválida', err.response?.data ?? 'No se pudo validar el QR.');
-        } finally {
-            setTimeout(() => setProcesando(false), 2000);
+            console.log('ERROR ESCANEO:', err.response?.data ?? err.message);
+            window.alert('Error: ' + (err.response?.data ?? 'No se pudo validar el QR.'));
+            setProcesando(false);
         }
     };
 
@@ -265,6 +262,10 @@ export default function FuncionarioScreen() {
                 </View>
 
                 {error ? <Text style={styles.error}>{error}</Text> : null}
+
+                <View style={styles.warningCard}>
+                    <Text style={styles.warningTexto}>⚠️ Recordá escanear al menos una entrada por sector asignado.</Text>
+                </View>
 
                 {sinAsignacionesDetectadas ? (
                     <View style={styles.emptyCard}>
@@ -426,6 +427,20 @@ const styles = StyleSheet.create({
         fontSize: 14,
         marginTop: 10,
         lineHeight: 20,
+    },
+    warningCard: {
+        backgroundColor: '#fefce8',
+        borderRadius: 12,
+        padding: 14,
+        marginBottom: 16,
+        borderLeftWidth: 4,
+        borderLeftColor: '#eab308',
+    },
+    warningTexto: {
+        color: '#854d0e',
+        fontSize: 13,
+        fontWeight: '600',
+        lineHeight: 18,
     },
     seccion: {
         marginTop: 24,
