@@ -178,9 +178,9 @@ export default function AdminGestionFuncionariosScreen() {
         setExitoDesasignarSector(''); setErrorDesasignarSector('');
         setActionLoading(true);
         try {
-            await api.delete(
-                `/funcionarios-asignados-sector/${asignacion.id.nroLegajo}/${asignacion.id.nombreSector}/${asignacion.id.estadioNombre}/${asignacion.id.estadioDireccionPais}/${asignacion.id.estadioDireccionCiudad}`
-            );
+            await api.delete('/funcionarios-asignados-sector/desasignar', {
+                data: { id: asignacion.id }
+            });
             setExitoDesasignarSector('Asignación eliminada correctamente.');
             await cargarDatos();
         } catch (err: any) {
