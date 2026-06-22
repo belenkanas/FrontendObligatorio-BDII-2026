@@ -396,7 +396,7 @@ export default function FuncionarioScreen() {
 const styles = StyleSheet.create({
     fondo: {
         flex: 1,
-        backgroundColor: '#0f172a',
+        backgroundColor: '#0c4a6e',
     },
     container: {
         padding: 20,
@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
         minHeight: '100%',
     },
     header: {
-        backgroundColor: '#0f172a',
+        backgroundColor: '#0369a1',
         borderRadius: 28,
         padding: 22,
         marginBottom: 18,
