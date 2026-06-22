@@ -178,6 +178,13 @@ export default function AdminGestionEventosScreen() {
       return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
   };
 
+  const formatearFechaDisplay = (fecha: string) => {
+    return new Date(fecha).toLocaleDateString('es-UY', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
+  };
+
   const cargarDatos = async () => {
     setLoading(true);
     try {
@@ -626,7 +633,7 @@ export default function AdminGestionEventosScreen() {
                                     <Text style={s.cardTitulo}>
                                         {id.nombrePaisEquipoLocal} vs {id.nombrePaisEquipoVisitante}
                                     </Text>
-                                    <Text style={s.detalle}>{id.estadioNombre} — {id.fechaHoraPartido}</Text>
+                                    <Text style={s.detalle}>{id.estadioNombre} — {formatearFechaDisplay(id.fechaHoraPartido)}</Text>
                                     <Text style={[s.detalle, { color: suspendido ? '#ef4444' : '#10b981', fontWeight: '700' }]}>
                                         {suspendido ? '● Suspendido' : '● Activo'}
                                     </Text>

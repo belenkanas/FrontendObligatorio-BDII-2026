@@ -11,6 +11,7 @@ type Evento = {
   fechaHoraPartido: string;
   nombrePaisEquipoLocal: string;
   nombrePaisEquipoVisitante: string;
+  estado?: string;
 };
 
 type Sector = {
@@ -50,7 +51,10 @@ export default function EventosScreen() {
       try {
           const response = await api.get('/eventos');
           const data = Array.isArray(response.data) ? response.data : [];
-          const mapeados = data.map((e: any) => e.id ?? e);
+          const mapeados = data.map((e: any) => ({
+              ...(e.id ?? e),
+              estado: e.estado || 'activo', // string vacío también cae como 'activo'
+          }));
           const ordenados = mapeados.sort((a: Evento, b: Evento) =>
               new Date(a.fechaHoraPartido).getTime() - new Date(b.fechaHoraPartido).getTime()
           );
@@ -63,9 +67,11 @@ export default function EventosScreen() {
   };
 
   const ahora = new Date();
-  const eventosFuturos = eventos.filter(e => new Date(e.fechaHoraPartido) > ahora);
+  const eventosFuturos = eventos.filter(e => 
+      new Date(e.fechaHoraPartido) > ahora && e.estado !== 'suspendido'
+  );
   const eventosPasados = eventos
-    .filter(e => new Date(e.fechaHoraPartido) <= ahora)
+    .filter(e => new Date(e.fechaHoraPartido) <= ahora && e.estado !== 'suspendido')
     .reverse();
 
   const abrirEvento = async (evento: Evento) => {
@@ -166,21 +172,24 @@ export default function EventosScreen() {
           contentContainerStyle={{ paddingBottom: 16 }}
           renderItem={({ item }) => (
             <View style={styles.card}>
-              <View style={styles.cardInfo}>
-                <Text style={styles.cardPartido}>
-                  {item.nombrePaisEquipoLocal} vs {item.nombrePaisEquipoVisitante}
-                </Text>
-                <Text style={styles.cardDetalle}>{item.estadioNombre}</Text>
-                <Text style={styles.cardDetalle}>📍 {item.estadioDireccionCiudad}, {item.estadioDireccionPais}</Text>
-                <Text style={styles.cardDetalle}>{formatearFecha(item.fechaHoraPartido)}</Text>
-              </View>
-                {usuario?.rol === 'GENERAL' && tabActiva === 'proximos' && (
-                  <TouchableOpacity style={styles.botonComprar} onPress={() => abrirEvento(item)}>
-                    <Text style={styles.botonComprarTexto}>Comprar</Text>
-                  </TouchableOpacity>
+                <View style={styles.cardInfo}>
+                    <Text style={styles.cardPartido}>
+                        {item.nombrePaisEquipoLocal} vs {item.nombrePaisEquipoVisitante}
+                    </Text>
+                    <Text style={styles.cardDetalle}>{item.estadioNombre}</Text>
+                    <Text style={styles.cardDetalle}>📍 {item.estadioDireccionCiudad}, {item.estadioDireccionPais}</Text>
+                    <Text style={styles.cardDetalle}>{formatearFecha(item.fechaHoraPartido)}</Text>
+                    {item.estado === 'suspendido' && (
+                        <Text style={styles.estadoSuspendido}>⚠️ Suspendido</Text>
+                    )}
+                </View>
+                {usuario?.rol === 'GENERAL' && tabActiva === 'proximos' && item.estado !== 'suspendido' && (
+                    <TouchableOpacity style={styles.botonComprar} onPress={() => abrirEvento(item)}>
+                        <Text style={styles.botonComprarTexto}>Comprar</Text>
+                    </TouchableOpacity>
                 )}
             </View>
-          )}
+        )}
         />
       )}
 
@@ -322,4 +331,5 @@ const styles = StyleSheet.create({
   tabActiva: { backgroundColor: '#1a73e8' },
   tabTexto: { fontWeight: '600', color: '#6b7280' },
   tabTextoActivo: { color: '#fff' },
+  estadoSuspendido: { color: '#ef4444', fontWeight: '700', fontSize: 12, marginTop: 4 },
 });
