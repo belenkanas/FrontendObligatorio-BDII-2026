@@ -35,6 +35,7 @@ type Evento = {
   fechaHoraPartido?: string;
   nombrePaisEquipoLocal?: string;
   nombrePaisEquipoVisitante?: string;
+  estado?: string;
 };
 
 type Sector = {
@@ -145,6 +146,13 @@ export default function AdminGestionEventosScreen() {
   const [exitoEvento, setExitoEvento] = useState('');
   const [errorEvento, setErrorEvento] = useState('');
   
+  const [exitoActualizarCosto, setExitoActualizarCosto] = useState('');
+  const [errorActualizarCosto, setErrorActualizarCosto] = useState('');
+  const [nuevoCosto, setNuevoCosto] = useState('');
+  const [sectorParaActualizarCosto, setSectorParaActualizarCosto] = useState('');
+
+  const [exitoEstado, setExitoEstado] = useState('');
+  const [errorEstado, setErrorEstado] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -246,6 +254,61 @@ export default function AdminGestionEventosScreen() {
             await cargarDatos();
         } catch (err: any) {
             setErrorEvento(obtenerMensajeError(err, 'No se pudo crear el evento.'));
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const actualizarCostoSector = async () => {
+        setExitoActualizarCosto(''); setErrorActualizarCosto('');
+
+        if (!sectorParaActualizarCosto) {
+            setErrorActualizarCosto('Seleccioná un sector.');
+            return;
+        }
+        if (!nuevoCosto.trim() || isNaN(Number(nuevoCosto)) || Number(nuevoCosto) < 0) {
+            setErrorActualizarCosto('Ingresá un costo válido mayor o igual a 0.');
+            return;
+        }
+
+        const sector = sectoresEvento.find((se) => JSON.stringify(se.id) === sectorParaActualizarCosto);
+        if (!sector) {
+            setErrorActualizarCosto('No se pudo resolver el sector seleccionado.');
+            return;
+        }
+
+        setActionLoading(true);
+        try {
+            await api.patch('/sector-eventos/actualizar-costo', {
+                id: sector.id,
+                costo: Number(nuevoCosto),
+            });
+            setExitoActualizarCosto('Costo actualizado correctamente.');
+            setNuevoCosto('');
+            setSectorParaActualizarCosto('');
+            await cargarDatos();
+        } catch (err: any) {
+            setErrorActualizarCosto(obtenerMensajeError(err, 'No se pudo actualizar el costo.'));
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const cambiarEstadoEvento = async (evento: Evento, nuevoEstado: 'activo' | 'suspendido') => {
+        setExitoEstado(''); setErrorEstado('');
+        const eventoId = normalizarEventoId(evento);
+        if (!eventoId) return;
+
+        setActionLoading(true);
+        try {
+            await api.patch('/eventos/actualizar-estado', {
+                id: eventoId,
+                estado: nuevoEstado,
+            });
+            setExitoEstado(`Evento ${nuevoEstado === 'suspendido' ? 'suspendido' : 'reactivado'} correctamente.`);
+            await cargarDatos();
+        } catch (err: any) {
+            setErrorEstado(obtenerMensajeError(err, 'No se pudo cambiar el estado del evento.'));
         } finally {
             setActionLoading(false);
         }
@@ -403,6 +466,7 @@ export default function AdminGestionEventosScreen() {
   };
 
   const renderEventos = () => (
+    <>
       <View style={s.cardSeccion}>
           <Text style={s.subtitulo}>Cargar nuevo evento</Text>
 
@@ -528,6 +592,61 @@ export default function AdminGestionEventosScreen() {
               <Text style={s.botonTexto}>{actionLoading ? 'Cargando...' : 'Cargar evento'}</Text>
           </TouchableOpacity>
       </View>
+
+      <View style={s.cardSeccion}>
+            <Text style={s.subtitulo}>Suspender o reactivar evento</Text>
+            <Text style={s.descripcionSeccion}>
+                Cambiá el estado de un evento sin eliminarlo. Los eventos suspendidos no aparecen disponibles para compra.
+            </Text>
+
+            {exitoEstado ? <Text style={s.mensajeExito}>{exitoEstado}</Text> : null}
+            {errorEstado ? <Text style={s.mensajeError}>{errorEstado}</Text> : null}
+
+            {eventos.length === 0 ? (
+                <Text style={s.vacio}>No hay eventos registrados.</Text>
+            ) : (
+                <FlatList
+                    data={[...eventos]
+                        .filter((e) => normalizarEventoId(e) !== null)
+                        .sort((a, b) => {
+                            const idA = normalizarEventoId(a);
+                            const idB = normalizarEventoId(b);
+                            return new Date(idA!.fechaHoraPartido).getTime() - new Date(idB!.fechaHoraPartido).getTime();
+                        })}
+                    keyExtractor={(item, index) => String(index)}
+                    scrollEnabled={false}
+                    ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+                    renderItem={({ item }) => {
+                        const id = normalizarEventoId(item);
+                        if (!id) return null;
+                        const suspendido = item.estado === 'suspendido';
+                        return (
+                            <View style={s.cardEvento}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={s.cardTitulo}>
+                                        {id.nombrePaisEquipoLocal} vs {id.nombrePaisEquipoVisitante}
+                                    </Text>
+                                    <Text style={s.detalle}>{id.estadioNombre} — {id.fechaHoraPartido}</Text>
+                                    <Text style={[s.detalle, { color: suspendido ? '#ef4444' : '#10b981', fontWeight: '700' }]}>
+                                        {suspendido ? '● Suspendido' : '● Activo'}
+                                    </Text>
+                                </View>
+                                <TouchableOpacity
+                                    style={[s.botonEstado, suspendido ? s.botonReactivar : s.botonSuspender, actionLoading && s.botonDeshabilitado]}
+                                    onPress={() => cambiarEstadoEvento(item, suspendido ? 'activo' : 'suspendido')}
+                                    disabled={actionLoading}
+                                >
+                                    <Text style={s.botonEstadoTexto}>
+                                        {suspendido ? 'Reactivar' : 'Suspender'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        );
+                    }}
+                />
+            )}
+        </View>
+    </>
   );
 
   const renderHabilitarSectores = () => {
@@ -554,6 +673,7 @@ export default function AdminGestionEventosScreen() {
       const sectoresDisponibles = sectoresFiltrados.filter((s) => !nombresYaHabilitados.includes(s.id.nombre));
 
       return (
+        <>
           <View style={s.cardSeccion}>
               <Text style={s.subtitulo}>Habilitar sectores para eventos</Text>
 
@@ -690,6 +810,52 @@ export default function AdminGestionEventosScreen() {
                   </>
               )}
           </View>
+
+          <View style={s.cardSeccion}>
+            <Text style={s.subtitulo}>Actualizar costo de sector</Text>
+            <Text style={s.descripcionSeccion}>
+                Modificá el precio de un sector habilitado para un evento.
+            </Text>
+
+            <Text style={s.label}>Sector habilitado</Text>
+            <View style={s.pickerContainer}>
+                <Picker
+                    selectedValue={sectorParaActualizarCosto}
+                    onValueChange={(v) => setSectorParaActualizarCosto(String(v))}
+                >
+                    <Picker.Item label="Seleccioná un sector" value="" />
+                    {sectoresEvento.map((se) => (
+                        <Picker.Item
+                            key={JSON.stringify(se.id)}
+                            label={`${se.id.nombreSector} — ${se.id.estadioNombre} — ${se.id.fechaHoraPartido}${se.costo !== undefined ? ` (actual: USD ${se.costo})` : ''}`}
+                            value={JSON.stringify(se.id)}
+                        />
+                    ))}
+                </Picker>
+            </View>
+
+            <Text style={s.label}>Nuevo costo (USD)</Text>
+            <TextInput
+                style={s.input}
+                placeholder="Ej: 75.00"
+                value={nuevoCosto}
+                onChangeText={setNuevoCosto}
+                keyboardType="decimal-pad"
+                editable={!!sectorParaActualizarCosto}
+            />
+
+            {exitoActualizarCosto ? <Text style={s.mensajeExito}>{exitoActualizarCosto}</Text> : null}
+            {errorActualizarCosto ? <Text style={s.mensajeError}>{errorActualizarCosto}</Text> : null}
+
+            <TouchableOpacity
+                style={[s.botonPrimario, (actionLoading || !sectorParaActualizarCosto || !nuevoCosto.trim()) && s.botonDeshabilitado]}
+                onPress={actualizarCostoSector}
+                disabled={actionLoading || !sectorParaActualizarCosto || !nuevoCosto.trim()}
+            >
+                <Text style={s.botonTexto}>{actionLoading ? 'Actualizando...' : 'Actualizar costo'}</Text>
+            </TouchableOpacity>
+        </View>
+        </>
       );
   };
 
@@ -849,6 +1015,26 @@ const s = StyleSheet.create({
       color: '#111827',
       fontWeight: '600',
   },
+  cardEvento: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#e5e7eb',
+        borderRadius: 12,
+        padding: 12,
+        backgroundColor: '#fafafa',
+    },
+    cardTitulo: { fontSize: 15, fontWeight: '800', color: '#111827', marginBottom: 4 },
+    botonEstado: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+        marginLeft: 8,
+    },
+    botonSuspender: { backgroundColor: '#ef4444' },
+    botonReactivar: { backgroundColor: '#10b981' },
+    botonEstadoTexto: { color: '#fff', fontWeight: '700', fontSize: 12 },
 });
 
 

@@ -47,20 +47,26 @@ export default function EventosScreen() {
   }, []);
 
   const cargarEventos = async () => {
-    try {
-      const response = await api.get('/eventos');
-      const data = Array.isArray(response.data) ? response.data : [];
-      setEventos(data.map((e: any) => e.id ?? e));
-    } catch {
-      setError('No pudimos cargar los eventos');
-    } finally {
-      setLoading(false);
-    }
+      try {
+          const response = await api.get('/eventos');
+          const data = Array.isArray(response.data) ? response.data : [];
+          const mapeados = data.map((e: any) => e.id ?? e);
+          const ordenados = mapeados.sort((a: Evento, b: Evento) =>
+              new Date(a.fechaHoraPartido).getTime() - new Date(b.fechaHoraPartido).getTime()
+          );
+          setEventos(ordenados);
+      } catch {
+          setError('No pudimos cargar los eventos');
+      } finally {
+          setLoading(false);
+      }
   };
 
   const ahora = new Date();
   const eventosFuturos = eventos.filter(e => new Date(e.fechaHoraPartido) > ahora);
-  const eventosPasados = eventos.filter(e => new Date(e.fechaHoraPartido) <= ahora);
+  const eventosPasados = eventos
+    .filter(e => new Date(e.fechaHoraPartido) <= ahora)
+    .reverse();
 
   const abrirEvento = async (evento: Evento) => {
     setEventoSeleccionado(evento);
