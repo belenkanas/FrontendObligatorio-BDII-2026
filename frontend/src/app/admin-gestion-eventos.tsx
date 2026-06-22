@@ -14,6 +14,7 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useAuth } from '../context/AuthContext';
 
 type SubTab = 'eventos' | 'habilitarSectores' | 'maestros';
 
@@ -148,6 +149,8 @@ export default function AdminGestionEventosScreen() {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
+  const { usuario } = useAuth();
+
   const subtabs: { key: SubTab; label: string }[] = [
     { key: 'eventos', label: 'Crear Eventos' },
     { key: 'habilitarSectores', label: 'Habilitar Sectores' },
@@ -195,53 +198,58 @@ export default function AdminGestionEventosScreen() {
   }, []);
 
   const crearEvento = async () => {
-      setExitoEvento(''); setErrorEvento('');
+        setExitoEvento(''); setErrorEvento('');
 
-      if (!estadioEventoSeleccionado || !equipoLocal || !equipoVisitante) {
-          setErrorEvento('Completá estadio, equipos y fecha/hora del evento.');
-          return;
-      }
-      if (equipoLocal === equipoVisitante) {
-          setErrorEvento('El equipo local y visitante deben ser distintos.');
-          return;
-      }
-      if (fechaEvento <= new Date()) {
-          setErrorEvento('La fecha y hora del evento debe ser posterior a la fecha actual.');
-          return;
-      }
+        if (!estadioEventoSeleccionado || !equipoLocal || !equipoVisitante) {
+            setErrorEvento('Completá estadio, equipos y fecha/hora del evento.');
+            return;
+        }
+        if (equipoLocal === equipoVisitante) {
+            setErrorEvento('El equipo local y visitante deben ser distintos.');
+            return;
+        }
+        if (fechaEvento <= new Date()) {
+            setErrorEvento('La fecha y hora del evento debe ser posterior a la fecha actual.');
+            return;
+        }
+        if (!usuario?.idPerfil) {
+            setErrorEvento('No se pudo identificar al administrador logueado.');
+            return;
+        }
 
-      const estadio = estadios.find((e) => JSON.stringify(e.id ?? e) === estadioEventoSeleccionado);
-      const estadioId = estadio?.id ?? (estadio as any);
-      if (!estadioId?.nombre) {
-          setErrorEvento('No se pudo resolver el estadio seleccionado.');
-          return;
-      }
+        const estadio = estadios.find((e) => JSON.stringify(e.id ?? e) === estadioEventoSeleccionado);
+        const estadioId = estadio?.id ?? (estadio as any);
+        if (!estadioId?.nombre) {
+            setErrorEvento('No se pudo resolver el estadio seleccionado.');
+            return;
+        }
 
-      setActionLoading(true);
-      try {
-          await api.post('/eventos', {
-              id: {
-                  estadioNombre: estadioId.nombre,
-                  estadioDireccionPais: estadioId.direccion_pais,
-                  estadioDireccionCiudad: estadioId.direccion_ciudad,
-                  fechaHoraPartido: formatearFecha(fechaEvento),
-                  nombrePaisEquipoLocal: equipoLocal,
-                  nombrePaisEquipoVisitante: equipoVisitante,
-              },
-          });
+        setActionLoading(true);
+        try {
+            await api.post('/eventos', {
+                id: {
+                    estadioNombre: estadioId.nombre,
+                    estadioDireccionPais: estadioId.direccion_pais,
+                    estadioDireccionCiudad: estadioId.direccion_ciudad,
+                    fechaHoraPartido: formatearFecha(fechaEvento),
+                    nombrePaisEquipoLocal: equipoLocal,
+                    nombrePaisEquipoVisitante: equipoVisitante,
+                },
+                idAdministrador: usuario.idPerfil,
+            });
 
-          setExitoEvento('Evento creado correctamente.');
-          setEquipoLocal('');
-          setEquipoVisitante('');
-          setEstadioEventoSeleccionado('');
-          setFechaEvento(new Date());
-          await cargarDatos();
-      } catch (err: any) {
-          setErrorEvento(obtenerMensajeError(err, 'No se pudo crear el evento.'));
-      } finally {
-          setActionLoading(false);
-      }
-  };
+            setExitoEvento('Evento creado correctamente.');
+            setEquipoLocal('');
+            setEquipoVisitante('');
+            setEstadioEventoSeleccionado('');
+            setFechaEvento(new Date());
+            await cargarDatos();
+        } catch (err: any) {
+            setErrorEvento(obtenerMensajeError(err, 'No se pudo crear el evento.'));
+        } finally {
+            setActionLoading(false);
+        }
+    };
 
   const habilitarSector = async () => {
       setExitoHabilitar(''); setErrorHabilitar('');
