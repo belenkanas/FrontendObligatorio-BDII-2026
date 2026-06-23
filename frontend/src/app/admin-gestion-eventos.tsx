@@ -603,7 +603,7 @@ export default function AdminGestionEventosScreen() {
       <View style={s.cardSeccion}>
             <Text style={s.subtitulo}>Suspender o reactivar evento</Text>
             <Text style={s.descripcionSeccion}>
-                Cambiá el estado de un evento sin eliminarlo. Los eventos suspendidos no aparecen disponibles para compra.
+                Cambiá el estado de un evento próximo sin eliminarlo. Los eventos suspendidos no aparecen disponibles para compra.
             </Text>
 
             {exitoEstado ? <Text style={s.mensajeExito}>{exitoEstado}</Text> : null}
@@ -614,7 +614,10 @@ export default function AdminGestionEventosScreen() {
             ) : (
                 <FlatList
                     data={[...eventos]
-                        .filter((e) => normalizarEventoId(e) !== null)
+                        .filter((e) => {
+                            const id = normalizarEventoId(e);
+                            return id !== null && new Date(id.fechaHoraPartido) > new Date();
+                        })
                         .sort((a, b) => {
                             const idA = normalizarEventoId(a);
                             const idB = normalizarEventoId(b);
