@@ -227,7 +227,7 @@ export default function AdminGestionEventosScreen() {
   useEffect(() => {
         cargarPaisSede();
   }, [usuario]);
-  
+
   const crearEvento = async () => {
         setExitoEvento(''); setErrorEvento('');
 
@@ -849,26 +849,31 @@ export default function AdminGestionEventosScreen() {
               )}
 
               {/* Lista global si no hay evento seleccionado */}
-              {!eventoIdSeleccionado && (
-                  <>
-                      <Text style={[s.subtitulo, { marginTop: 16 }]}>Todos los sectores habilitados</Text>
-                      {sectoresEvento.length === 0 ? (
-                          <Text style={s.vacio}>No hay sectores habilitados en eventos.</Text>
-                      ) : (
-                          <FlatList
-                              data={sectoresEvento}
-                              keyExtractor={(item, index) => String(index)}
-                              scrollEnabled={false}
-                              renderItem={({ item }) => (
-                                  <Text style={s.detalle}>
-                                      • {item.id.nombreSector} - {item.id.estadioNombre} - {item.id.fechaHoraPartido}
-                                      {item.costo !== undefined ? ` — USD ${item.costo}` : ''}
-                                  </Text>
-                              )}
-                          />
-                      )}
-                  </>
-              )}
+                {!eventoIdSeleccionado && (
+                    <>
+                        <Text style={[s.subtitulo, { marginTop: 16 }]}>Todos los sectores habilitados</Text>
+                        {(() => {
+                            const sectoresFiltradosGlobal = sectoresEvento.filter(
+                                (se) => !paisSedeAdmin || se.id.estadioDireccionPais === paisSedeAdmin
+                            );
+                            return sectoresFiltradosGlobal.length === 0 ? (
+                                <Text style={s.vacio}>No hay sectores habilitados en eventos.</Text>
+                            ) : (
+                                <FlatList
+                                    data={sectoresFiltradosGlobal}
+                                    keyExtractor={(item, index) => String(index)}
+                                    scrollEnabled={false}
+                                    renderItem={({ item }) => (
+                                        <Text style={s.detalle}>
+                                            • {item.id.nombreSector} - {item.id.estadioNombre} - {item.id.fechaHoraPartido}
+                                            {item.costo !== undefined ? ` — USD ${item.costo}` : ''}
+                                        </Text>
+                                    )}
+                                />
+                            );
+                        })()}
+                    </>
+                )}
           </View>
 
           <View style={s.cardSeccion}>
@@ -884,13 +889,15 @@ export default function AdminGestionEventosScreen() {
                     onValueChange={(v) => setSectorParaActualizarCosto(String(v))}
                 >
                     <Picker.Item label="Seleccioná un sector" value="" />
-                    {sectoresEvento.map((se) => (
-                        <Picker.Item
-                            key={JSON.stringify(se.id)}
-                            label={`${se.id.nombreSector} — ${se.id.estadioNombre} — ${se.id.fechaHoraPartido}${se.costo !== undefined ? ` (actual: USD ${se.costo})` : ''}`}
-                            value={JSON.stringify(se.id)}
-                        />
-                    ))}
+                    {sectoresEvento
+                        .filter((se) => !paisSedeAdmin || se.id.estadioDireccionPais === paisSedeAdmin)
+                        .map((se) => (
+                            <Picker.Item
+                                key={JSON.stringify(se.id)}
+                                label={`${se.id.nombreSector} — ${se.id.estadioNombre} — ${se.id.fechaHoraPartido}${se.costo !== undefined ? ` (actual: USD ${se.costo})` : ''}`}
+                                value={JSON.stringify(se.id)}
+                            />
+                        ))}
                 </Picker>
             </View>
 
