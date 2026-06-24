@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import { useAuth } from '../context/AuthContext'
 
 type SubTab = 'funcionarios' | 'sectorEvento' | 'dispositivo' | 'gestionDispositivos';
 
@@ -73,6 +74,8 @@ export default function AdminGestionFuncionariosScreen() {
     const [modalEliminar, setModalEliminar] = useState(false);
     const [dispositivoAEliminar, setDispositivoAEliminar] = useState<Dispositivo | null>(null);
     
+    const [dispositivoParaSector, setDispositivoParaSector] = useState('');
+
     const [exitoAsignar, setExitoAsignar] = useState('');
     const [errorAsignar, setErrorAsignar] = useState('');
     const [exitoRegistrar, setExitoRegistrar] = useState('');
@@ -99,6 +102,9 @@ export default function AdminGestionFuncionariosScreen() {
     const [asignacionesSector, setAsignacionesSector] = useState<FuncionarioAsignadoSector[]>([]);
     const [exitoDesasignarSector, setExitoDesasignarSector] = useState('');
     const [errorDesasignarSector, setErrorDesasignarSector] = useState('');
+
+    const [paisSedeAdmin, setPaisSedeAdmin] = useState<string | null>(null);
+    const { usuario } = useAuth();
 
     const obtenerMensajeError = (err: any, fallback: string) => {
         const data = err?.response?.data;
@@ -140,6 +146,24 @@ export default function AdminGestionFuncionariosScreen() {
         }
     };
 
+    const cargarPaisSede = async () => {
+        if (!usuario?.idPerfil) return;
+        try {
+            const adminRes = await api.get(`/administradores/${usuario.idPerfil}`);
+            setPaisSedeAdmin(adminRes.data?.paisSede ?? null);
+        } catch {
+
+        }
+    };
+
+    useEffect(() => {
+        cargarDatos();
+    }, []);
+
+    useEffect(() => {
+            cargarPaisSede();
+    }, [usuario]);
+
     const asignarSector = async () => {
         setExitoAsignarSector(''); setErrorAsignarSector('');
 
@@ -167,11 +191,13 @@ export default function AdminGestionFuncionariosScreen() {
                     estadioDireccionCiudad: sector.id.estadioDireccionCiudad,
                     fechaHoraPartido: sector.id.fechaHoraPartido,
                 },
+                idDispositivoEscaneo: Number(dispositivoParaSector),  // ← nuevo
             });
 
             setExitoAsignarSector('Sector asignado correctamente.');
             setSectorSeleccionado('');
             setEventoParaAsignar('');
+            setDispositivoParaSector('');
             await cargarDatos();
         } catch (err: any) {
             setErrorAsignarSector(obtenerMensajeError(err, 'No se pudo asignar el sector.'));
@@ -282,9 +308,7 @@ export default function AdminGestionFuncionariosScreen() {
         }
     };
 
-    useEffect(() => {
-        cargarDatos();
-    }, []);
+    
 
     const dispositivosPorLegajo = (legajo: string) => {
         return dispositivos.filter((d) => d.nroLegajo === legajo);
@@ -346,10 +370,14 @@ export default function AdminGestionFuncionariosScreen() {
 
         // Solo eventos próximos y activos, ordenados por fecha
         const eventosDisponibles = eventos
-            .filter((e) => new Date(e.id.fechaHoraPartido) > ahora && (e as any).estado !== 'suspendido')
+            .filter((e) =>
+                new Date(e.id.fechaHoraPartido) > ahora &&
+                (e as any).estado !== 'suspendido' &&
+                (!paisSedeAdmin || e.id.estadioDireccionPais === paisSedeAdmin) 
+            )
             .sort((a, b) => new Date(a.id.fechaHoraPartido).getTime() - new Date(b.id.fechaHoraPartido).getTime());
-
-        const eventoSeleccionado = eventoParaAsignar
+        
+            const eventoSeleccionado = eventoParaAsignar
             ? eventos.find((e) => JSON.stringify(e.id) === eventoParaAsignar)
             : null;
 
@@ -379,6 +407,17 @@ export default function AdminGestionFuncionariosScreen() {
             (s) => !sectoresYaAsignados.includes(s.id.nombreSector)
         );
 
+        const asignacionesFiltradas = asignacionesSector.filter((a) =>
+            (!paisSedeAdmin || a.id.estadioDireccionPais === paisSedeAdmin) &&
+            (!eventoParaAsignar ||
+                (a.id.estadioNombre === eventoSeleccionado?.id.estadioNombre &&
+                a.id.fechaHoraPartido === eventoSeleccionado?.id.fechaHoraPartido))
+        );
+
+        const dispositivosDelFuncionario = dispositivos.filter(
+            (d) => d.nroLegajo === legajoSeleccionado
+        );
+
         return (
             <View style={s.cardSeccion}>
                 <Text style={s.subtitulo}>Asignar sector de evento</Text>
@@ -393,6 +432,7 @@ export default function AdminGestionFuncionariosScreen() {
                         onValueChange={(v) => {
                             setFuncionarioSector(String(v));
                             setSectorSeleccionado('');
+                            setDispositivoParaSector('');
                         }}
                     >
                         <Picker.Item label="Seleccioná un funcionario" value="" />
@@ -413,6 +453,7 @@ export default function AdminGestionFuncionariosScreen() {
                         onValueChange={(v) => {
                             setEventoParaAsignar(String(v));
                             setSectorSeleccionado('');
+                            setDispositivoParaSector('');
                         }}
                     >
                         <Picker.Item label="Seleccioná un evento" value="" />
@@ -455,13 +496,42 @@ export default function AdminGestionFuncionariosScreen() {
                     </Picker>
                 </View>
 
+                <Text style={s.label}>
+                    Dispositivo{legajoSeleccionado ? ` (${dispositivosDelFuncionario.length} asignados)` : ''}
+                </Text>
+                <View style={s.pickerContainer}>
+                    <Picker
+                        selectedValue={dispositivoParaSector}
+                        onValueChange={(v) => setDispositivoParaSector(String(v))}
+                        enabled={!!sectorSeleccionado && dispositivosDelFuncionario.length > 0}
+                    >
+                        <Picker.Item
+                            label={
+                                !sectorSeleccionado
+                                    ? 'Primero seleccioná un sector'
+                                    : dispositivosDelFuncionario.length === 0
+                                    ? 'Este funcionario no tiene dispositivos asignados'
+                                    : 'Seleccioná un dispositivo'
+                            }
+                            value=""
+                        />
+                        {dispositivosDelFuncionario.map((d) => (
+                            <Picker.Item
+                                key={String(d.id)}
+                                label={d.nroSerie ?? `#${d.id}`}
+                                value={String(d.id)}
+                            />
+                        ))}
+                    </Picker>
+                </View>
+
                 {exitoAsignarSector ? <Text style={s.mensajeExito}>{exitoAsignarSector}</Text> : null}
                 {errorAsignarSector ? <Text style={s.mensajeError}>{errorAsignarSector}</Text> : null}
 
                 <TouchableOpacity
                     style={[s.botonPrimario, (actionLoading || !sectorSeleccionado) && s.botonDeshabilitado]}
                     onPress={asignarSector}
-                    disabled={actionLoading || !sectorSeleccionado}
+                    disabled={actionLoading || !sectorSeleccionado || !dispositivoParaSector}
                 >
                     <Text style={s.botonTexto}>{actionLoading ? 'Asignando...' : 'Asignar sector'}</Text>
                 </TouchableOpacity>
@@ -473,19 +543,11 @@ export default function AdminGestionFuncionariosScreen() {
                         : 'Seleccioná un evento para filtrar las asignaciones.'}
                 </Text>
 
-                {asignacionesSector.filter((a) =>
-                    !eventoParaAsignar ||
-                    (a.id.estadioNombre === eventoSeleccionado?.id.estadioNombre &&
-                    a.id.fechaHoraPartido === eventoSeleccionado?.id.fechaHoraPartido)
-                ).length === 0 ? (
+                {asignacionesFiltradas.length === 0 ? (
                     <Text style={s.vacio}>No hay asignaciones para este evento.</Text>
-                ) : (
+                ) : ( 
                     <FlatList
-                        data={asignacionesSector.filter((a) =>
-                            !eventoParaAsignar ||
-                            (a.id.estadioNombre === eventoSeleccionado?.id.estadioNombre &&
-                            a.id.fechaHoraPartido === eventoSeleccionado?.id.fechaHoraPartido)
-                        )}
+                        data={asignacionesFiltradas}
                         keyExtractor={(item, index) => String(index)}
                         scrollEnabled={false}
                         ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
