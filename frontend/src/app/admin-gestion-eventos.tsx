@@ -224,9 +224,10 @@ export default function AdminGestionEventosScreen() {
     cargarDatos();
   }, []);
 
-    useEffect(() => {
+  useEffect(() => {
         cargarPaisSede();
-    }, [usuario]);
+  }, [usuario]);
+  
   const crearEvento = async () => {
         setExitoEvento(''); setErrorEvento('');
 
