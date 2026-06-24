@@ -321,67 +321,90 @@ export default function AdminGestionEventosScreen() {
         }
     };
 
-  const habilitarSector = async () => {
-      setExitoHabilitar(''); setErrorHabilitar('');
+    const habilitarSector = async () => {
+        setExitoHabilitar(''); setErrorHabilitar('');
 
-      if (!eventoParaSector || !sectorParaHabilitar) {
-          setErrorHabilitar('Seleccioná un evento y un sector para habilitar.');
-          return;
-      }
-      if (!costoSector.trim() || isNaN(Number(costoSector)) || Number(costoSector) < 0) {
-          setErrorHabilitar('Ingresá un costo válido mayor o igual a 0.');
-          return;
-      }
+        if (!eventoParaSector || !sectorParaHabilitar) {
+            setErrorHabilitar('Seleccioná un evento y un sector para habilitar.');
+            return;
+        }
+        if (!costoSector.trim() || isNaN(Number(costoSector)) || Number(costoSector) < 0) {
+            setErrorHabilitar('Ingresá un costo válido mayor o igual a 0.');
+            return;
+        }
 
-      const evento = eventos.find((e) => {
-          const id = normalizarEventoId(e);
-          return id && JSON.stringify(id) === eventoParaSector;
-      });
-      const eventoId = evento ? normalizarEventoId(evento) : null;
-      const sector = sectores.find((s) => JSON.stringify(s.id) === sectorParaHabilitar);
+        const evento = eventos.find((e) => {
+            const id = normalizarEventoId(e);
+            return id && JSON.stringify(id) === eventoParaSector;
+        });
+        const eventoId = evento ? normalizarEventoId(evento) : null;
+        const sector = sectores.find((s) => JSON.stringify(s.id) === sectorParaHabilitar);
 
-      if (!eventoId || !sector) {
-          setErrorHabilitar('No se pudo resolver evento o sector seleccionado.');
-          return;
-      }
+        if (!eventoId || !sector) {
+            setErrorHabilitar('No se pudo resolver evento o sector seleccionado.');
+            return;
+        }
 
-      setActionLoading(true);
-      try {
-          await api.post('/sector-eventos', {
-              id: {
-                  nombreSector: sector.id.nombre,
-                  estadioNombre: eventoId.estadioNombre,
-                  estadioDireccionPais: eventoId.estadioDireccionPais,
-                  estadioDireccionCiudad: eventoId.estadioDireccionCiudad,
-                  fechaHoraPartido: eventoId.fechaHoraPartido,
-              },
-              costo: Number(costoSector),
-          });
+        setActionLoading(true);
+        try {
+            await api.post('/sector-eventos', {
+                id: {
+                    nombreSector: sector.id.nombre,
+                    estadioNombre: eventoId.estadioNombre,
+                    estadioDireccionPais: eventoId.estadioDireccionPais,
+                    estadioDireccionCiudad: eventoId.estadioDireccionCiudad,
+                    fechaHoraPartido: eventoId.fechaHoraPartido,
+                },
+                costo: Number(costoSector),
+            });
 
-          setExitoHabilitar(`Sector "${sector.id.nombre}" habilitado correctamente.`);
-          setSectorParaHabilitar('');
-          setCostoSector('');
-          await cargarDatos();
-      } catch (err: any) {
-          setErrorHabilitar(obtenerMensajeError(err, 'No se pudo habilitar el sector.'));
-      } finally {
-          setActionLoading(false);
-      }
-  };
+            setExitoHabilitar(`Sector "${sector.id.nombre}" habilitado correctamente.`);
+            setSectorParaHabilitar('');
+            setCostoSector('');
+            await cargarDatos();
+        } catch (err: any) {
+            setErrorHabilitar(obtenerMensajeError(err, 'No se pudo habilitar el sector.'));
+        } finally {
+            setActionLoading(false);
+        }
+    };
 
-  const deshabilitarSector = async (sector: SectorEvento) => {
-      setExitoSector(''); setErrorSector('');
-      setActionLoading(true);
-      try {
-          await api.delete('/sector-eventos/deshabilitar', { data: { id: sector.id } });
-          setExitoSector(`Sector "${sector.id.nombreSector}" deshabilitado correctamente.`);
-          await cargarDatos();
-      } catch (err: any) {
-          setErrorSector(obtenerMensajeError(err, 'No se pudo deshabilitar el sector.'));
-      } finally {
-          setActionLoading(false);
-      }
-  };
+    const deshabilitarSector = async (sector: SectorEvento) => {
+        setExitoSector(''); 
+        setErrorSector('');
+        setActionLoading(true);
+
+        try {
+            // verificar que no haya entradas compradas en ese sector
+            const response = await api.post('/entradas/existen-compras-sector', {
+                nombreSector: sector.id.nombreSector,
+                estadioNombre: sector.id.estadioNombre,
+                estadioDireccionPais: sector.id.estadioDireccionPais,
+                estadioDireccionCiudad: sector.id.estadioDireccionCiudad,
+                fechaHoraPartido: sector.id.fechaHoraPartido,
+            });
+
+            // si existen, no deja deshabilitar
+            if (response.data === true) {
+                setErrorSector(
+                    `No se puede deshabilitar el sector "${sector.id.nombreSector}" porque ya tiene entradas compradas`
+                );
+                return;
+            }
+
+            // si no existen, deshabilitar
+            await api.delete('/sector-eventos/deshabilitar', { data: { id: sector.id } });
+            
+            setExitoSector(`Sector "${sector.id.nombreSector}" deshabilitado correctamente`);
+            
+            await cargarDatos();
+
+        } catch (err: any) {
+            setErrorSector(obtenerMensajeError(err, 'No se pudo deshabilitar el sector'));
+        } finally {
+            setActionLoading(false);
+        }
+    };
 
   const crearEquipo = async () => {
     if (!nuevoEquipo.trim()) {
