@@ -188,37 +188,45 @@ export default function AdminGestionEventosScreen() {
   };
 
   const cargarDatos = async () => {
-    setLoading(true);
-    try {
-      const [eventosRes, sectoresRes, sectorEventosRes, equiposRes, estadiosRes] = await Promise.all([
-        api.get('/eventos'),
-        api.get('/sectores'),
-        api.get('/sector-eventos'),
-        api.get('/equipos'),
-        api.get('/estadios'),
-      ]);
+        setLoading(true);
+        try {
+            const [eventosRes, sectoresRes, sectorEventosRes, equiposRes, estadiosRes] = await Promise.all([
+                api.get('/eventos'),
+                api.get('/sectores'),
+                api.get('/sector-eventos'),
+                api.get('/equipos'),
+                api.get('/estadios'),
+            ]);
 
-      setEventos(Array.isArray(eventosRes.data) ? eventosRes.data : []);
-      setSectores(Array.isArray(sectoresRes.data) ? sectoresRes.data : []);
-      setSectoresEvento(Array.isArray(sectorEventosRes.data) ? sectorEventosRes.data : []);
-      setEquipos(Array.isArray(equiposRes.data) ? equiposRes.data : []);
-      setEstadios(Array.isArray(estadiosRes.data) ? estadiosRes.data : []);
-    
-      if (usuario?.idPerfil) {
-        const adminRes = await api.get(`/administradores/${usuario.idPerfil}`);
-        setPaisSedeAdmin(adminRes.data?.paisSede ?? null);
-      }
-    } catch {
-      Alert.alert('Error', 'No se pudieron cargar los datos de gestión.');
-    } finally {
-      setLoading(false);
-    }
-  };
+            setEventos(Array.isArray(eventosRes.data) ? eventosRes.data : []);
+            setSectores(Array.isArray(sectoresRes.data) ? sectoresRes.data : []);
+            setSectoresEvento(Array.isArray(sectorEventosRes.data) ? sectorEventosRes.data : []);
+            setEquipos(Array.isArray(equiposRes.data) ? equiposRes.data : []);
+            setEstadios(Array.isArray(estadiosRes.data) ? estadiosRes.data : []);
+        } catch {
+            Alert.alert('Error', 'No se pudieron cargar los datos de gestión.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const cargarPaisSede = async () => {
+        if (!usuario?.idPerfil) return;
+        try {
+            const adminRes = await api.get(`/administradores/${usuario.idPerfil}`);
+            setPaisSedeAdmin(adminRes.data?.paisSede ?? null);
+        } catch {
+
+        }
+    };
 
   useEffect(() => {
     cargarDatos();
   }, []);
 
+    useEffect(() => {
+        cargarPaisSede();
+    }, [usuario]);
   const crearEvento = async () => {
         setExitoEvento(''); setErrorEvento('');
 
