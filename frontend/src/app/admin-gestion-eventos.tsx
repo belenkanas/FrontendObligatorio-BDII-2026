@@ -154,6 +154,8 @@ export default function AdminGestionEventosScreen() {
   const [exitoEstado, setExitoEstado] = useState('');
   const [errorEstado, setErrorEstado] = useState('');
 
+  const [paisSedeAdmin, setPaisSedeAdmin] = useState<string | null>(null);
+  
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -201,6 +203,11 @@ export default function AdminGestionEventosScreen() {
       setSectoresEvento(Array.isArray(sectorEventosRes.data) ? sectorEventosRes.data : []);
       setEquipos(Array.isArray(equiposRes.data) ? equiposRes.data : []);
       setEstadios(Array.isArray(estadiosRes.data) ? estadiosRes.data : []);
+    
+      if (usuario?.idPerfil) {
+        const adminRes = await api.get(`/administradores/${usuario.idPerfil}`);
+        setPaisSedeAdmin(adminRes.data?.paisSede ?? null);
+      }
     } catch {
       Alert.alert('Error', 'No se pudieron cargar los datos de gestión.');
     } finally {
@@ -504,13 +511,18 @@ export default function AdminGestionEventosScreen() {
           <View style={s.pickerContainer}>
               <Picker selectedValue={estadioEventoSeleccionado} onValueChange={(v) => setEstadioEventoSeleccionado(String(v))}>
                   <Picker.Item label="Seleccioná un estadio" value="" />
-                  {estadios.map((estadio) => (
-                      <Picker.Item
-                          key={JSON.stringify(estadio.id ?? estadio)}
-                          label={labelEstadio(estadio)}
-                          value={JSON.stringify(estadio.id ?? estadio)}
-                      />
-                  ))}
+                  {estadios
+                    .filter((estadio) => {
+                        const id = estadio.id ?? (estadio as any);
+                        return !paisSedeAdmin || id?.direccion_pais === paisSedeAdmin;
+                    })
+                    .map((estadio) => (
+                        <Picker.Item
+                            key={JSON.stringify(estadio.id ?? estadio)}
+                            label={labelEstadio(estadio)}
+                            value={JSON.stringify(estadio.id ?? estadio)}
+                        />
+                    ))}
               </Picker>
           </View>
 
@@ -639,7 +651,9 @@ export default function AdminGestionEventosScreen() {
                     data={[...eventos]
                         .filter((e) => {
                             const id = normalizarEventoId(e);
-                            return id !== null && new Date(id.fechaHoraPartido) > new Date();
+                            return id !== null 
+                                && new Date(id.fechaHoraPartido) > new Date()
+                                && (!paisSedeAdmin || id.estadioDireccionPais === paisSedeAdmin);
                         })
                         .sort((a, b) => {
                             const idA = normalizarEventoId(a);
@@ -725,7 +739,11 @@ export default function AdminGestionEventosScreen() {
                       <Picker.Item label="Seleccioná un evento" value="" />
                       {eventos
                         .map((evento) => normalizarEventoId(evento))
-                        .filter((id): id is EventoId => !!id && new Date(id.fechaHoraPartido) > new Date())
+                        .filter((id): id is EventoId => 
+                            !!id && 
+                            new Date(id.fechaHoraPartido) > new Date() &&
+                            (!paisSedeAdmin || id.estadioDireccionPais === paisSedeAdmin)
+                        )
                         .map((id) => (
                             <Picker.Item
                                 key={JSON.stringify(id)}

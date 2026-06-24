@@ -109,6 +109,12 @@ export default function AdminGestionFuncionariosScreen() {
         return fallback;
     };
 
+    const formatearFechaDisplay = (fecha: string) => {
+        const d = new Date(fecha);
+        const pad = (n: number) => String(n).padStart(2, '0');
+        return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} - ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
     const cargarDatos = async () => {
         setLoading(true);
         try {
@@ -336,10 +342,18 @@ export default function AdminGestionFuncionariosScreen() {
     );
 
     const renderAsignarSector = () => {
+        const ahora = new Date();
+
+        // Solo eventos próximos y activos, ordenados por fecha
+        const eventosDisponibles = eventos
+            .filter((e) => new Date(e.id.fechaHoraPartido) > ahora && (e as any).estado !== 'suspendido')
+            .sort((a, b) => new Date(a.id.fechaHoraPartido).getTime() - new Date(b.id.fechaHoraPartido).getTime());
+
         const eventoSeleccionado = eventoParaAsignar
             ? eventos.find((e) => JSON.stringify(e.id) === eventoParaAsignar)
             : null;
 
+        // Solo sectores habilitados del evento seleccionado
         const sectoresFiltrados = eventoSeleccionado
             ? sectoresEvento.filter((se) =>
                 se.id.estadioNombre === eventoSeleccionado.id.estadioNombre &&
@@ -348,6 +362,22 @@ export default function AdminGestionFuncionariosScreen() {
                 se.id.fechaHoraPartido === eventoSeleccionado.id.fechaHoraPartido
             )
             : [];
+
+        // Sectores ya asignados al funcionario seleccionado en este evento
+        const legajoSeleccionado = funcionarios.find((f) => String(f.id_funcionario) === funcionarioSector)?.nroLegajo;
+        const sectoresYaAsignados = asignacionesSector
+            .filter((a) =>
+                eventoSeleccionado &&
+                a.id.estadioNombre === eventoSeleccionado.id.estadioNombre &&
+                a.id.fechaHoraPartido === eventoSeleccionado.id.fechaHoraPartido &&
+                a.id.nroLegajo === legajoSeleccionado
+            )
+            .map((a) => a.id.nombreSector);
+
+        // Excluir sectores ya asignados al funcionario en este evento
+        const sectoresDisponibles = sectoresFiltrados.filter(
+            (s) => !sectoresYaAsignados.includes(s.id.nombreSector)
+        );
 
         return (
             <View style={s.cardSeccion}>
@@ -360,7 +390,10 @@ export default function AdminGestionFuncionariosScreen() {
                 <View style={s.pickerContainer}>
                     <Picker
                         selectedValue={funcionarioSector}
-                        onValueChange={(v) => setFuncionarioSector(String(v))}
+                        onValueChange={(v) => {
+                            setFuncionarioSector(String(v));
+                            setSectorSeleccionado('');
+                        }}
                     >
                         <Picker.Item label="Seleccioná un funcionario" value="" />
                         {funcionarios.map((funcionario) => (
@@ -383,38 +416,36 @@ export default function AdminGestionFuncionariosScreen() {
                         }}
                     >
                         <Picker.Item label="Seleccioná un evento" value="" />
-                        {eventos
-                            .filter((e) => new Date(e.id.fechaHoraPartido) > new Date())
-                            .map((evento) => (
-                                <Picker.Item
-                                    key={JSON.stringify(evento.id)}
-                                    label={`${evento.id.nombrePaisEquipoLocal} vs ${evento.id.nombrePaisEquipoVisitante} - ${evento.id.estadioNombre} - ${evento.id.fechaHoraPartido}`}
-                                    value={JSON.stringify(evento.id)}
-                                />
-                            ))}
+                        {eventosDisponibles.map((evento) => (
+                            <Picker.Item
+                                key={JSON.stringify(evento.id)}
+                                label={`${evento.id.nombrePaisEquipoLocal} vs ${evento.id.nombrePaisEquipoVisitante} - ${evento.id.estadioNombre} - ${formatearFechaDisplay(evento.id.fechaHoraPartido)}`}
+                                value={JSON.stringify(evento.id)}
+                            />
+                        ))}
                     </Picker>
                 </View>
 
                 <Text style={s.label}>
-                    Sector habilitado{eventoSeleccionado ? ` (${sectoresFiltrados.length} disponibles)` : ''}
+                    Sector habilitado{eventoSeleccionado ? ` (${sectoresDisponibles.length} disponibles)` : ''}
                 </Text>
                 <View style={s.pickerContainer}>
                     <Picker
                         selectedValue={sectorSeleccionado}
                         onValueChange={(v) => setSectorSeleccionado(String(v))}
-                        enabled={!!eventoSeleccionado && sectoresFiltrados.length > 0}
+                        enabled={!!eventoSeleccionado && sectoresDisponibles.length > 0}
                     >
                         <Picker.Item
                             label={
                                 !eventoSeleccionado
                                     ? 'Primero seleccioná un evento'
-                                    : sectoresFiltrados.length === 0
-                                    ? 'No hay sectores habilitados para este evento'
+                                    : sectoresDisponibles.length === 0
+                                    ? 'No hay sectores disponibles para asignar'
                                     : 'Seleccioná un sector'
                             }
                             value=""
                         />
-                        {sectoresFiltrados.map((sector) => (
+                        {sectoresDisponibles.map((sector) => (
                             <Picker.Item
                                 key={JSON.stringify(sector.id)}
                                 label={sector.id.nombreSector}
@@ -434,45 +465,54 @@ export default function AdminGestionFuncionariosScreen() {
                 >
                     <Text style={s.botonTexto}>{actionLoading ? 'Asignando...' : 'Asignar sector'}</Text>
                 </TouchableOpacity>
-            
-            <Text style={[s.subtitulo, { marginTop: 16 }]}>Asignaciones actuales</Text>
 
-            {asignacionesSector.length === 0 ? (
-                <Text style={s.vacio}>No hay asignaciones registradas.</Text>
-            ) : (
-                <FlatList
-                    data={asignacionesSector.filter((a) =>
-                        !eventoParaAsignar ||
-                        (a.id.estadioNombre === eventos.find((e) => JSON.stringify(e.id) === eventoParaAsignar)?.id.estadioNombre &&
-                        a.id.fechaHoraPartido === eventos.find((e) => JSON.stringify(e.id) === eventoParaAsignar)?.id.fechaHoraPartido)
-                    )}
-                    keyExtractor={(item, index) => String(index)}
-                    scrollEnabled={false}
-                    ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
-                    renderItem={({ item }) => (
-                        <View style={s.cardSectorHabilitado}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={s.detalle}>
-                                    {item.id.nroLegajo} → {item.id.nombreSector}
-                                </Text>
-                                <Text style={[s.detalle, { fontSize: 11, color: '#9ca3af' }]}>
-                                    {item.id.estadioNombre} - {item.id.fechaHoraPartido}
-                                </Text>
+                <Text style={[s.subtitulo, { marginTop: 16 }]}>Asignaciones actuales</Text>
+                <Text style={[s.descripcionSeccion, { marginBottom: 8 }]}>
+                    {eventoSeleccionado
+                        ? `Mostrando asignaciones para ${eventoSeleccionado.id.nombrePaisEquipoLocal} vs ${eventoSeleccionado.id.nombrePaisEquipoVisitante}`
+                        : 'Seleccioná un evento para filtrar las asignaciones.'}
+                </Text>
+
+                {asignacionesSector.filter((a) =>
+                    !eventoParaAsignar ||
+                    (a.id.estadioNombre === eventoSeleccionado?.id.estadioNombre &&
+                    a.id.fechaHoraPartido === eventoSeleccionado?.id.fechaHoraPartido)
+                ).length === 0 ? (
+                    <Text style={s.vacio}>No hay asignaciones para este evento.</Text>
+                ) : (
+                    <FlatList
+                        data={asignacionesSector.filter((a) =>
+                            !eventoParaAsignar ||
+                            (a.id.estadioNombre === eventoSeleccionado?.id.estadioNombre &&
+                            a.id.fechaHoraPartido === eventoSeleccionado?.id.fechaHoraPartido)
+                        )}
+                        keyExtractor={(item, index) => String(index)}
+                        scrollEnabled={false}
+                        ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
+                        renderItem={({ item }) => (
+                            <View style={s.cardSectorHabilitado}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={s.detalle}>
+                                        {item.id.nroLegajo} → {item.id.nombreSector}
+                                    </Text>
+                                    <Text style={[s.detalle, { fontSize: 11, color: '#9ca3af' }]}>
+                                        {item.id.estadioNombre} - {formatearFechaDisplay(item.id.fechaHoraPartido)}
+                                    </Text>
+                                </View>
+                                <TouchableOpacity
+                                    style={s.botonEliminar}
+                                    onPress={() => desasignarSector(item)}
+                                    disabled={actionLoading}
+                                >
+                                    <Text style={s.botonEliminarTexto}>Quitar</Text>
+                                </TouchableOpacity>
                             </View>
-                            <TouchableOpacity
-                                style={s.botonEliminar}
-                                onPress={() => desasignarSector(item)}
-                                disabled={actionLoading}
-                            >
-                                <Text style={s.botonEliminarTexto}>Quitar</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
-                />
-            )}
+                        )}
+                    />
+                )}
 
-            {exitoDesasignarSector ? <Text style={s.mensajeExito}>{exitoDesasignarSector}</Text> : null}
-            {errorDesasignarSector ? <Text style={s.mensajeError}>{errorDesasignarSector}</Text> : null}          
+                {exitoDesasignarSector ? <Text style={s.mensajeExito}>{exitoDesasignarSector}</Text> : null}
+                {errorDesasignarSector ? <Text style={s.mensajeError}>{errorDesasignarSector}</Text> : null}
             </View>
         );
     };
