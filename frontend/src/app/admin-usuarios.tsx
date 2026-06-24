@@ -18,76 +18,17 @@ type Usuario = {
   rol: string;
 };
 
-type Administrador = {
-  mail: string;
-  password: string;
-  paisSede: string;
-};
-
-const obtenerMensajeError = (err: any, fallback: string) => {
-  const data = err?.response?.data;
-
-  if (!data) return fallback;
-  if (typeof data === 'string') return data;
-  if (typeof data?.message === 'string') return data.message;
-  if (typeof data?.error === 'string') return data.error;
-
-  return fallback;
-};
-
-
 export default function AdminUsuariosScreen() {
   const [mail, setMail]       = useState('');
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [nuevoRol, setNuevoRol] = useState('');
   const [paisSede, setPaisSede] = useState('');
-  const [adminMail, setAdminMail] = useState('');
-  const [adminPassword, setAdminPassword] = useState('');
-  const [adminPaisSede, setAdminPaisSede] = useState('');
-  const [creandoAdmin, setCreandoAdmin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
   const [exito, setExito]     = useState('');
   const [mostrarModalEliminar, setMostrarModalEliminar] = useState(false);
 
-  const crearAdministrador = async (administrador: Administrador) => {
-    setError('');
-    setExito('');
-    setCreandoAdmin(true);
-    try {
-      await api.post('/administradores', administrador);
-      setExito('Administrador creado correctamente');
-      setAdminMail('');
-      setAdminPassword('');
-      setAdminPaisSede('');
-    } catch (err: any) {
-      setError(obtenerMensajeError(err, 'Error al crear el administrador'));
-    } finally {
-      setCreandoAdmin(false);
-    }
-  };
-
-  const handleCrearAdministrador = async () => {
-    if (!adminMail.trim()) {
-      setError('Ingresá el mail del administrador');
-      return;
-    }
-    if (!adminPassword.trim()) {
-      setError('Ingresá la contraseña del administrador');
-      return;
-    }
-    if (!adminPaisSede.trim()) {
-      setError('Ingresá el país sede');
-      return;
-    }
-
-    await crearAdministrador({
-      mail: adminMail.trim(),
-      password: adminPassword,
-      paisSede: adminPaisSede.trim(),
-    });
-  };
-
+  
   //Buscar usuario por mail
   const buscarUsuario = async () => {
     setError('');
@@ -264,44 +205,6 @@ export default function AdminUsuariosScreen() {
         y modificar su rol dentro del sistema.
         Esta acción solo está disponible para administradores.
       </Text>
-
-      <View style={s.cardSeccion}>
-        <Text style={s.subtitulo}>Crear administrador</Text>
-
-        <TextInput
-          style={s.input}
-          placeholder="Mail del administrador"
-          value={adminMail}
-          onChangeText={setAdminMail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-
-        <TextInput
-          style={s.input}
-          placeholder="Contraseña"
-          value={adminPassword}
-          onChangeText={setAdminPassword}
-          secureTextEntry
-        />
-
-        <View style={s.pickerContainer}>
-          <Picker selectedValue={adminPaisSede} onValueChange={(v) => setAdminPaisSede(v)}>
-            <Picker.Item label="Seleccioná un país sede" value="" />
-            <Picker.Item label="México" value="México" />
-            <Picker.Item label="Canadá" value="Canadá" />
-            <Picker.Item label="Estados Unidos" value="Estados Unidos" />
-          </Picker>
-        </View>
-
-        <TouchableOpacity
-          style={s.botonCrearAdmin}
-          onPress={handleCrearAdministrador}
-          disabled={creandoAdmin}
-        >
-          <Text style={s.botonTexto}>{creandoAdmin ? 'Creando...' : 'Crear administrador'}</Text>
-        </TouchableOpacity>
-      </View>
 
       {/* Buscador */}
       <View style={s.busqueda}>
