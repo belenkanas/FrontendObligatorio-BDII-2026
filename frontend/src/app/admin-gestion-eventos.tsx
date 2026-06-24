@@ -305,6 +305,7 @@ export default function AdminGestionEventosScreen() {
             await api.patch('/sector-eventos/actualizar-costo', {
                 id: sector.id,
                 costo: Number(nuevoCosto),
+                idAdministrador: usuario!.idPerfil,
             });
             setExitoActualizarCosto('Costo actualizado correctamente.');
             setNuevoCosto('');
@@ -372,6 +373,7 @@ export default function AdminGestionEventosScreen() {
                     fechaHoraPartido: eventoId.fechaHoraPartido,
                 },
                 costo: Number(costoSector),
+                idAdministrador: usuario!.idPerfil,
             });
 
             setExitoHabilitar(`Sector "${sector.id.nombre}" habilitado correctamente.`);
@@ -409,7 +411,12 @@ export default function AdminGestionEventosScreen() {
             }
 
             // si no existen, deshabilitar
-            await api.delete('/sector-eventos/deshabilitar', { data: { id: sector.id } });
+            await api.delete('/sector-eventos/deshabilitar', 
+                { data: 
+                    { 
+                        id: sector.id,
+                        idAdministrador: usuario!.idPerfil,
+                     } });
             
             setExitoSector(`Sector "${sector.id.nombreSector}" deshabilitado correctamente`);
             
