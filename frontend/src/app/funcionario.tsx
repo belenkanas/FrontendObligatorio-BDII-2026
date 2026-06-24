@@ -8,6 +8,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 type SectorAsignado = {
     nombreSector: string;
     idDispositivoEscaneo: number;
+    nroSerieDispositivo: string; 
     vendidas: number;
     escaneadas: number;
 };
@@ -58,10 +59,11 @@ function claveFecha(rawFecha: any): string {
 }
 
 async function cargarAsignacionesFuncionario(idPerfil: number): Promise<EventoFuncionario[]> {
-    const [asignacionesRes, entradasRes, escaneosRes] = await Promise.all([
+    const [asignacionesRes, entradasRes, escaneosRes, dispositivosRes] = await Promise.all([
         api.get(`/funcionarios/${idPerfil}/asignaciones`),
         api.get('/entradas'),
         api.get('/tokens-escaneados'),
+        api.get('/dispositivos'),
     ]);
 
     const asignacionesData = Array.isArray(asignacionesRes.data) ? asignacionesRes.data : [];
@@ -88,6 +90,14 @@ async function cargarAsignacionesFuncionario(idPerfil: number): Promise<EventoFu
         escaneadasPorDispositivo[key] = (escaneadasPorDispositivo[key] ?? 0) + 1;
     });
 
+    const dispositivos: any[] = Array.isArray(dispositivosRes.data) ? dispositivosRes.data : [];
+
+    // nroSerie para lookup rápido
+    const nroSeriePorId: Record<number, string> = {};
+    dispositivos.forEach((d) => {
+        if (d.id != null) nroSeriePorId[d.id] = d.nroSerie ?? `#${d.id}`;
+    });
+
     return asignacionesData.map((item: any, index: number) => {
         const evento = item?.evento ?? {};
         const eventoId = evento?.id ?? {};
@@ -111,6 +121,7 @@ async function cargarAsignacionesFuncionario(idPerfil: number): Promise<EventoFu
             return {
                 nombreSector: s.nombreSector,
                 idDispositivoEscaneo: s.idDispositivoEscaneo,
+                nroSerieDispositivo: nroSeriePorId[s.idDispositivoEscaneo] ?? `#${s.idDispositivoEscaneo}`,  // ← agregar
                 vendidas: vendidasPorSector[keyVendidas] ?? 0,
                 escaneadas: escaneadasPorDispositivo[String(s.idDispositivoEscaneo)] ?? 0,
             };
@@ -303,7 +314,7 @@ export default function FuncionarioScreen() {
                                 >
                                     <View style={{ flex: 1 }}>
                                         <Text style={styles.sectorNombre}>{sector.nombreSector}</Text>
-                                        <Text style={styles.sectorDispositivo}>Dispositivo #{sector.idDispositivoEscaneo}</Text>
+                                        <Text style={styles.sectorDispositivo}>Dispositivo {sector.nroSerieDispositivo}</Text>
                                         <Text style={styles.sectorConteo}>
                                             {sector.escaneadas} / {sector.vendidas} entradas escaneadas
                                         </Text>
