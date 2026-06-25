@@ -351,7 +351,7 @@ export default function FuncionarioScreen() {
                                 <View key={`${evento.id}-${sector.nombreSector}`} style={styles.sectorRowPasado}>
                                     <View>
                                         <Text style={styles.sectorNombre}>{sector.nombreSector}</Text>
-                                        <Text style={styles.sectorDispositivo}>Dispositivo #{sector.idDispositivoEscaneo}</Text>
+                                        <Text style={styles.sectorDispositivo}>Dispositivo {sector.nroSerieDispositivo}</Text>
                                     </View>
                                     <Text style={styles.sectorConteo}>
                                         {sector.escaneadas} / {sector.vendidas}
